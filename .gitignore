@@ -1,0 +1,10 @@
+.venv/
+cardiac-ep-portfolio.zip
+data/
+models/*.pt
+results/*.json
+results/ecg_viewer.html
+__pycache__/
+*.pyc
+.DS_Store
+opencarp/output/
