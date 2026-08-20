@@ -90,17 +90,21 @@ model-specific limitations (as distinct from the project-level ones in §8 below
 Trained on real PTB-XL (100Hz, PhysioNet release 1.0.3), 5-superclass task
 (NORM/MI/STTC/CD/HYP), standard fold split (1-8 train / 9 val / 10 test).
 
-**Current result — macro F1 (test): 0.6028** — below the plan's 0.70 target.
-Early stopping at epoch 25 (patience=5), best checkpoint epoch 20
-(val_macro_f1=0.6236).
+**Current result — macro F1 (test): 0.6080** — below the plan's 0.70 target.
+Early stopping at epoch 14 (patience=5), best checkpoint epoch 9
+(val_macro_f1=0.6002).
 
 | Class | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
-| NORM | 0.88 | 0.76 | 0.81 | 912 |
-| MI | 0.64 | 0.68 | 0.66 | 256 |
-| STTC | 0.54 | 0.84 | 0.66 | 242 |
-| CD | 0.90 | 0.60 | 0.72 | 184 |
-| HYP | 0.13 | 0.21 | 0.16 | 56 |
+| NORM | 0.81 | 0.91 | 0.86 | 912 |
+| MI | 0.74 | 0.54 | 0.62 | 256 |
+| STTC | 0.68 | 0.73 | 0.70 | 242 |
+| CD | 0.80 | 0.68 | 0.74 | 184 |
+| HYP | 0.19 | 0.09 | 0.12 | 56 |
+
+*(This specific checkpoint is a 2026-08-19 re-run of the identical seed/config described
+below — see the reproducibility note after the Decision paragraph for why the number moved
+from 0.6028 to 0.6080 despite nothing being changed.)*
 
 ![Confusion matrix](results/confusion_matrix.png)
 ![Example ECG traces with predicted vs. true label](results/example_traces.png)
@@ -143,6 +147,32 @@ is the harder and higher-priority part of this project per the plan). Revisit
 HYP-specific interventions (oversampling, focal loss) if time remains after
 Phase 2-3 are solid.
 
+**v2 architecture experiment (2026-08-19, attempted and reverted):** tried a
+dilated final conv layer (wider receptive field, 340ms→600ms) plus
+concatenated avg+max pooling (instead of avg alone), aimed at the same
+"global average pooling washes out localized abnormalities" concern. Result:
+raw accuracy improved (0.72→0.75) but macro F1 got worse (0.6028→0.5992) and
+HYP F1 got worse too (0.16→0.11) — more model capacity gave the model more
+ways to fit the well-represented classes without any more HYP data to anchor
+that class's boundary. Reverted; full writeup and the before/after table are
+in `docs/MODEL_ARCHITECTURE.md` §5, since `scripts/model.py` itself no longer
+shows any trace of the attempt.
+
+**Reproducibility note (2026-08-19):** regenerating the reverted checkpoint —
+identical architecture, seed (42), and hyperparameters as the run that
+produced the documented 0.6028 — actually produced macro F1 0.6080, a
+different result. `train_baseline.py`'s `set_seed()` seeds numpy/torch in the
+main process, but the `DataLoader` uses `num_workers=2`; the worker
+subprocesses' own RNG state isn't covered by that single seed call, so batch
+ordering/timing isn't actually fixed run-to-run despite "using a fixed seed."
+Treat 0.6028 and 0.6080 as two draws from the same config's inherent
+run-to-run variance (~0.005 macro F1), not two different models — the
+architecture and training recipe are identical. Not fixed yet; a real fix
+would mean `num_workers=0` (slower) or a properly seeded per-worker
+`worker_init_fn` + `torch.Generator`, plus pinning
+`torch.backends.cudnn.deterministic=True`. Flagged rather than silently
+patched over.
+
 ### Phase 2 — openCARP simulation
 
 *(Not yet started — see plan `docs/IMPLEMENTATION_PLAN.md` §4.)*
@@ -161,12 +191,6 @@ scp <user>@<host>:/path/to/pfa/results/ecg_viewer.html ~/Downloads/
 ```
 then open the downloaded file directly.
 
-Also published as a Claude Artifact —
-**[ECG Diagnosis Viewer](https://claude.ai/code/artifact/22bb43d4-bd37-410f-9049-dad77b95063e)**
-— but that link only resolves in a browser logged into the Claude account that published it,
-which doesn't help from a bare SSH session; the local file above is the reliable path. If the
-artifact link goes stale, find it again via `claude.ai/code/artifacts` in the Claude web app.
-
 **How to use it:** pick a diagnostic superclass in the left rail (NORM/MI/STTC/CD/HYP), then
 an individual test-set sample from the list below it — each row is marked ✓ or ✗ against the
 true label. Selecting a sample shows the model's full confidence breakdown across all five
@@ -177,8 +201,7 @@ click any of the 12 small panels to make it the primary trace.
 
 **Reusable across models by construction:** the viewer reads a fixed JSON schema (id / true
 label / predicted label / per-class confidence / per-lead waveform) rather than anything
-specific to `ECGConvNet`. To showcase a future, more complex model, regenerate the data and
-republish — the viewer HTML itself doesn't change:
+specific to `ECGConvNet`. To showcase a future, more complex model, regenerate the data:
 
 ```bash
 python scripts/export_viewer_data.py --checkpoint models/<new_checkpoint>.pt \
@@ -186,9 +209,8 @@ python scripts/export_viewer_data.py --checkpoint models/<new_checkpoint>.pt \
 ```
 
 then hand the resulting `results/viewer_data.json` to Claude Code to splice into the viewer
-template and rewrite `results/ecg_viewer.html` (and, optionally, republish the Claude
-Artifact copy above to the same URL). The header's model name and export date update
-automatically from the JSON — no other viewer changes needed.
+template and rewrite `results/ecg_viewer.html`. The header's model name and export date
+update automatically from the JSON — no other viewer changes needed.
 
 ## 8. Limitations & Future Work
 

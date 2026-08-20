@@ -4,6 +4,11 @@ Kept small on purpose: this is a baseline to get the pipeline working end to
 end and to have a credible, explainable starting point. Swapping in a
 resnet-1d or transformer later is a natural "next step" to mention in an
 interview, not something to over-engineer on day one.
+
+A v2 variant (dilated final conv + concatenated avg/max pooling) was tried
+and reverted -- it improved raw accuracy but made macro F1 and HYP recall
+worse, not better. See docs/MODEL_ARCHITECTURE.md §5 for the full experiment
+writeup and why it didn't make the cut.
 """
 import torch
 import torch.nn as nn

@@ -68,13 +68,22 @@ layers and two intervening max-pools. 340ms roughly spans a QRS complex plus par
 ST-T segment — the right order of magnitude for the kind of localized morphology that
 distinguishes these superclasses (e.g. STTC is defined by ST/T-wave shape).
 
-`AdaptiveAvgPool1d(1)` then averages that 34-sample-wide local pattern detector across all
-250 remaining time steps — i.e. across the full 10-second recording. The practical
-consequence: the model is a **local-pattern detector pooled globally**, not a beat-by-beat
-or whole-cycle model. Each of the 128 output channels reports "how strongly did my ~340ms
-pattern fire, averaged over the whole recording" — with no explicit notion of beat order,
-heart rate, or where in the recording something happened. This is a real capability
-boundary, not just a training artifact — see Limitations below.
+Importantly, that 340ms figure is the width of *one* window, not 34 separate windows. The
+250 remaining time steps are 250 evaluations of that same 340ms-wide detector, spaced only
+4 raw samples (40ms) apart — the "jump" accumulated through the two `MaxPool1d(2)` layers.
+A 340ms window on a 40ms step means each window overlaps ~88% with its neighbor (300ms of
+overlap out of 340ms), and any given input sample falls inside roughly 340/40 ≈ 8-9 of the
+250 windows. 250 steps × 40ms = 10,000ms, so the windows collectively sweep the full
+10-second recording as a densely overlapping sliding window, not as 250 independent
+non-overlapping segments.
+
+`AdaptiveAvgPool1d(1)` then averages those 250 (highly correlated, because they overlap so
+much) activations per channel into a single number. The practical consequence: the model is
+a **local-pattern detector, evaluated on a dense sliding window, pooled globally** — not a
+beat-by-beat or whole-cycle model. Each of the 128 output channels reports "how strongly did
+my ~340ms pattern fire, on average, as this window slid across the recording" — with no
+explicit notion of beat order, heart rate, or where in the recording something happened.
+This is a real capability boundary, not just a training artifact — see Limitations below.
 
 ## 3. Design decisions
 
@@ -130,7 +139,11 @@ early-stopping criterion were both switched from val_loss to macro-F1 partway th
 training, so it can plateau or drift independently of the actual target metric.
 
 **Fixed seed (42).** Reproducibility, added per `IMPLEMENTATION_PLAN.md`'s explicit Phase 1
-TODO list — not present in the original scaffold.
+TODO list — not present in the original scaffold. **Caveat, discovered 2026-08-19:** this
+does not actually make training fully reproducible — see README §6's reproducibility note.
+`set_seed()` covers numpy/torch in the main process, but `train_baseline.py`'s `DataLoader`
+uses `num_workers=2`, whose worker subprocesses aren't covered by that seed call. Two
+otherwise-identical runs landed 0.005 macro F1 apart (0.6028 vs 0.6080).
 
 ## 4. Limitations
 
@@ -166,3 +179,55 @@ TODO list — not present in the original scaffold.
   as "confidence," but there's no reliability diagram or expected-calibration-error analysis
   behind that framing. A small model, trained with aggressive class weighting, on a class
   with 535 examples, is a plausible candidate for miscalibration — this hasn't been checked.
+
+## 5. v2 experiment: wider receptive field + avg/max pooling (attempted, reverted)
+
+**Motivation.** Global average pooling (§2-3 above) reports one number per channel: how
+strongly a pattern fired *on average* across the whole 10-second recording. For a
+diagnostic feature that's genuinely localized — one abnormal beat in an otherwise normal
+strip — averaging dilutes it against however many normal-looking windows surround it. Two
+changes were proposed to address this directly, both cheap:
+
+1. **Dilation on the final conv layer** (`dilation=2`, `padding=4` to preserve the 250-step
+   sequence length) — widens that layer's receptive field from 340ms to ~600ms at 100Hz, at
+   zero extra parameters, closer to a full beat cycle.
+2. **Concatenated avg + max pooling** instead of avg alone — doubles the pooled feature
+   vector to 256-dim, so the classifier sees both "how strongly did this pattern fire on
+   average" (avg) and "did this pattern fire *anywhere* at all" (max, which shouldn't get
+   washed out by surrounding normal beats the way an average does).
+
+Total cost: 55,205 → 55,845 parameters (+640, all in the now-wider final `Linear` layer).
+
+**Result — this made macro F1 worse, not better**, trained with the exact same seed (42),
+data, and hyperparameters as the accepted v1 baseline for a clean comparison:
+
+| Run | Macro F1 | Accuracy | NORM F1 | MI F1 | STTC F1 | CD F1 | HYP F1 |
+|---|---|---|---|---|---|---|---|
+| v1 (accepted baseline, see README §6) | 0.6028 | 0.72 | 0.81 | 0.66 | 0.66 | 0.72 | 0.16 |
+| v2 (dilated conv + avg/max pool) | 0.5992 | **0.75** | **0.84** | 0.65 | 0.71 | 0.70 | **0.11** |
+
+*(0.6028 is the v1 number as it stood when this comparison was run. Per the reproducibility
+caveat above, a same-config re-run later landed at 0.6080 instead — within the ~0.005 run-to-run
+noise this setup produces, not a sign v1 and v2 are closer than they look. v2's 0.5992 is a
+single run and hasn't been re-run to check its own variance.)*
+
+**Diagnosis.** The pattern is consistent with every other change tried in Phase 1 (see
+README §6's earlier before/after): raw accuracy improved (0.72→0.75, and 3 of 5 per-class
+F1 scores improved or held steady) while macro F1 got *worse*, because the extra model
+capacity and richer 256-dim feature vector gave the model more ways to fit the
+well-represented classes more precisely, with nothing to anchor a better decision boundary
+for HYP specifically — its 535 examples didn't grow just because the model got more
+expressive. If anything, more capacity with the same starved amount of HYP data looks like
+it made overfitting toward the majority classes easier, not harder. This is further
+evidence for the standing diagnosis in §4 above: **HYP is a data problem, not an
+architecture problem**, and changes that don't add HYP-specific data or supervision keep
+trading other classes' performance for it rather than fixing it.
+
+**Decision:** reverted. `scripts/model.py` is back to the single-avg-pool, non-dilated
+architecture described in §2-3; this section is the only remaining record of the v2 attempt
+(git history also has it, but this doc is the source of truth per this project's
+documentation convention — see `docs/IMPLEMENTATION_PLAN.md` §7). The natural next
+experiment, floated but not yet tried, is HYP-specific oversampling (weighted random
+sampling in the training `DataLoader`) — a genuinely different lever from anything
+attempted so far, since it targets the data imbalance directly rather than working around
+it through architecture or loss weighting.
