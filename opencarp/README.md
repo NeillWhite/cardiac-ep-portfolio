@@ -57,6 +57,45 @@ choice — flagged as a known risk in the plan, §9), and inspect what `run.py` 
 writes to disk (exact IGB paths, mesh files) before building the post-processing pipeline
 against it.
 
+### 2a. Ground-truth run log (2026-08-20) — confirmed working invocation, two gotchas found
+
+`RP_E` and `PEERP` both got through mesh/stimulus setup but then crashed inside carputils'
+`extract_last_ms_from_igb` with a `FileNotFoundError` for a `vm.igb` that was never written
+— the underlying openCARP subprocess exited right after "Restoring... Checkpoint holds
+ionic model..." with no error message. Root cause: **the Docker image ships a pre-tuned
+prepace steady-state** at
+`21_reentry_induction/prepace_block_50000.0um_resolution_400.0um_cv_0.3_with_4_beats_at_500.0_bcl_lump_1/`,
+generated Dec 2020 by an older openCARP build (checkpoint format v1) — `run.py` reuses it
+whenever `vm_last_beat.igb` already exists there, skipping prepacing entirely. Restoring
+that stale checkpoint into the current image's solver is what silently breaks. **Fix:**
+move/delete that directory once so `run.py` regenerates it fresh against the current
+binary (~a few minutes); it's then cached for subsequent runs in the same volume.
+
+With a fresh prepace steady-state, `RP_B` (checks for reentry after *every* beat, rather
+than once at the end/via a single extrastimulus) successfully induced a sustained rotor:
+
+```bash
+./run.py --np 4 --protocol RP_B --start_bcl 200 --end_bcl 100 --step 10 \
+    --max_n_beats_RP 1 --overwrite-behaviour overwrite
+```
+
+Second gotcha: **drop `--visualize`** for this example specifically — it calls
+`job.meshalyzer(...)`, which needs the standalone `meshalyzer` GUI binary this Docker image
+deliberately doesn't include (confirmed by `carputils/job/command.py`'s own
+`OPENCARP_DOCKER` skip-logic for meshalyzer/limpetgui calls — but `job.meshalyzer()` resolves
+the executable path *before* that skip check runs, so it still hard-crashes rather than
+gracefully skipping). Not a problem in practice: all the actual simulation output (mesh +
+`vm.igb`) is written well before that call, and the project's own post-processing
+(`opencarp/phase_singularity.py`, `opencarp/plot_phase_singularity.py`) reads the IGB files
+directly and does its own matplotlib plotting instead.
+
+Output layout for a successful run (`<job_dir>/point_<node>/beat_<n>/`):
+- `vm.igb` — the free-running window after the last pacing stimulus (this is the ground-truth
+  source: rotor sustains or dies out here)
+- `state_prop.roe`, `vm_prop.igb` — a short post-stimulus propagation-refractoriness check,
+  not the main data
+- `reentries.txt` (job-dir level) — one line per confirmed induction: `node S2_start_ms beat_n bcl_ms`
+
 ## 3. Basic tissue EP example (simpler reference, not the primary path)
 
 `/openCARP/examples/02_EP_tissue/01_basic_usage/run.py` — single stimulus, thin monolayer,

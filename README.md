@@ -51,8 +51,18 @@ cardiac-ep-portfolio/
 ├── models/                 # saved checkpoints (not committed)
 ├── results/                # metrics.json, plots
 └── opencarp/
-    ├── README.md            # Docker setup + tutorial run instructions
-    └── run_tutorial.sh
+    ├── README.md                    # Docker setup + verified run instructions/gotchas
+    ├── run_tutorial.sh
+    ├── phase_singularity.py         # Hilbert phase -> PS detection -> ablation-target labels
+    ├── plot_phase_singularity.py    # review-gate figures from phase_singularity.py output
+    ├── render_vm_frames.py          # per-frame PNGs for the tracked-rotor video
+    ├── render_full_story.py         # per-frame PNGs: stimulus through established rotor
+    ├── render_pacing_train.py       # per-frame PNGs: all 6 pacing beats through established rotor
+    ├── extract_electrode_features.py  # single-bipole electrode features (first attempt, ROC-AUC 0.61)
+    ├── extract_cluster_features.py    # local-electrode-cluster features, swept over k=1..8
+    ├── train_electrogram_classifier.py  # GBT classifier, single k (single-bipole or cluster CSV)
+    ├── train_cluster_sweep.py         # trains the classifier at every k, produces the sweep plot
+    └── runs/                        # not committed — raw sim output (meshes, IGB, checkpoints)
 ```
 
 ## 4. Getting Started (Phase 1 — ECG baseline)
@@ -173,9 +183,108 @@ would mean `num_workers=0` (slower) or a properly seeded per-worker
 `torch.backends.cudnn.deterministic=True`. Flagged rather than silently
 patched over.
 
-### Phase 2 — openCARP simulation
+### Phase 2 — openCARP simulation (ground-truth generation, run 2026-08-20)
 
-*(Not yet started — see plan `docs/IMPLEMENTATION_PLAN.md` §4.)*
+**Substrate:** 5cm×5cm 2D tissue patch, 400µm resolution (126×126 regular grid, 15,876
+nodes), Courtemanche + AF-remodeling ionic model, circular fibrotic patch (radius 1.42cm,
+centered) reusing openCARP's `21_reentry_induction` example (`opencarp/README.md`).
+
+**Induction:** the documented `RP_E`/`PEERP` invocations from `opencarp/README.md`
+completed the setup and stimulus train but then crashed inside carputils' own
+`extract_last_ms_from_igb` helper (`FileNotFoundError` for a `vm.igb` that was never
+written) — traced to a **stale bundled prepace checkpoint**: the Docker image ships a
+pre-tuned steady-state (`prepace_block_.../state.2000.0.roe`) generated in Dec 2020 by an
+older openCARP build (checkpoint format v1), and restoring it into the current build's
+solver crashes silently (process exits 0/1 with no diagnostic, right after "Restoring...").
+Deleting that stale directory so `run.py` regenerates the prepace steady-state against the
+*current* binary fixed it. `RP_B` (rapid pacing, BCL 200→100ms in 10ms steps, arrhythmia
+check after every beat) then successfully **induced a sustained reentrant rotor** via an S2
+stimulus at mesh node 7830 (coords (7.2, 24.8)mm) at a coupling interval of 150ms; the
+rotor core itself settles at the fibrotic patch's edge, trajectory centroid ≈(28, 17)mm —
+distinct from the stimulus site.
+
+**Ground truth (new code, `opencarp/phase_singularity.py`):** Hilbert-transform each node's
+mean-subtracted Vm → instantaneous phase; per-frame phase-singularity detection via
+winding-number (phase-loop sum ≈±2π) over each mesh unit cell; greedy nearest-neighbour
+linking into a single rotor-core trajectory; mesh nodes within 3mm of any trajectory point
+labeled as ablation targets. Over the 400ms post-induction window: a phase singularity was
+detected in **401/401 frames** (fully sustained, non-meandering-off rotor), tracked into one
+continuous trajectory anchored at the patch border, labeling **823/15,876 nodes (5.2%)** as
+ablation targets.
+
+![Rotor trajectory and ablation-target labels](results/phase2_reentry_2026-08-20/rotor_trajectory.png)
+![Vm snapshots with tracked rotor core](results/phase2_reentry_2026-08-20/vm_snapshots.png)
+
+The snapshot grid shows a textbook spiral wave curling around the fibrotic patch, with the
+detected phase-singularity marker (star) tracking the visual core of the spiral in every
+panel — a useful sanity check independent of the numerical detection method.
+
+**Mid-Phase-2 review gate:** cleared — the rotor trajectory and ablation-target labeling were
+reviewed (including a full 6-beat pacing-train video showing the actual induction mechanism)
+before building any classifier on top.
+
+### Phase 2 — electrogram-feature classifier (rotor-adjacency prediction, run 2026-08-20)
+
+**Virtual electrode sampling (`opencarp/extract_cluster_features.py`):** 676 sites on a 2mm
+grid across the tissue (matching typical clinical mapping-catheter spacing). Simplifying
+assumption: this is a monodomain-only simulation, so there's no true extracellular potential
+to sample — unipolar EGM is approximated as the local transmembrane voltage Vm(t) (standard
+practice when full bidomain/lead-field forward modeling is out of scope), and bipolar EGM is
+the difference between two such signals ~2mm apart, which *is* exactly how real bipolar
+electrograms are derived, so that half isn't an approximation.
+
+**First attempt failed, honestly reported:** a single fixed-direction bipolar pair per site,
+with the plan's four listed features (bipolar amplitude, fractionation, LAT, dominant
+frequency — the last restricted to a 3-15Hz band, since an unrestricted FFT argmax on a
+mostly non-periodic deflection picks up high-frequency edge artifacts, not real periodicity),
+gave **ROC-AUC 0.61** — barely better than random. Per-class feature means were nearly
+identical between ablation-target and background sites. Diagnosis: a phase singularity is a
+*relational* concept (phase winds around a loop of neighboring points), so a single
+electrode's own waveform is a weak proxy for it — using the full phase map directly would
+just reconstruct the label's own definition (tautological 1.0 AUC, not a real prediction);
+the actual task is deliberately harder, betting that a few *local* scalar features can stand
+in for that expensive global computation.
+
+**Fix — local electrode clusters + an electrode-count sweep:** instead of one fixed bipole,
+each candidate site gets a small cluster of neighbor electrodes added one at a time (E, N, W,
+S, then the 4 diagonals — up to 8, mimicking a small grid/basket catheter), with aggregate
+features (min/mean/std of bipolar amplitude, mean/max fractionation, **spread and std of
+local activation time across the cluster**, mean/std of dominant frequency) computed from the
+first *k* neighbors. Training the same classifier at every k directly answers "how many local
+electrodes does this need?":
+
+![Electrode count sweep](results/phase2_reentry_2026-08-20/cluster_sweep.png)
+
+ROC-AUC jumps from 0.68 (k=1) to 0.85 (k=3) then plateaus/climbs slowly to 0.91 (k=8) — most
+of the achievable signal comes from just 3-4 local electrodes, consistent with the
+relational-signature hypothesis (LAT spread across a small cluster directly captures "this
+patch of tissue isn't propagating like a smooth planar wavefront," the actual signature of
+being near a wavebreak). Averaged over 10 spatial-split repeats (checkerboard 5mm blocks, see
+below) for stability given the small positive count.
+
+**Detailed result at k=4** (four cardinal neighbors — a physically realistic small
+cross/grid catheter, right where returns start diminishing):
+
+![Classifier results at k=4](results/phase2_reentry_2026-08-20/classifier_results.png)
+![Spatial check: predictions vs. ground truth](results/phase2_reentry_2026-08-20/classifier_spatial_check.png)
+
+**ROC-AUC 0.882, average precision 0.209** (base rate 4.5%) on a held-out **spatial**
+checkerboard test set (5mm blocks — a naive random split would leak, since neighboring
+electrodes are highly spatially correlated within one simulated rotor). At the default 0.5
+probability threshold, hard predictions were spatially scattered despite good ranking
+quality — a calibration artifact of the aggressive class-reweighting needed for ~5% positive
+prevalence, not a real signal problem. Fixed by using a **prevalence-matched threshold**
+(flag the top ~5% of test electrodes by predicted probability, the practically relevant
+framing anyway — "check the top-N riskiest sites") instead of 0.5: precision 0.26, recall
+0.31 for the ablation-target class. Feature importances (permutation-based, since
+`HistGradientBoostingClassifier` has no built-in `feature_importances_`) rank `bipolar_amp_std`
+and `dom_freq_std` — cluster-*spread* features — highest, matching the relational-signature
+hypothesis directly.
+
+**End-of-Phase-2 review gate:** per `docs/IMPLEMENTATION_PLAN.md` §8, this is the checkpoint
+before Phase 3. Real signal exists (ROC-AUC well above chance, feature importances that make
+physiological sense) but the hard-decision numbers are modest — expected given only 33
+positive electrode sites total, all drawn from one simulated rotor on one mesh.
 
 ## 7. Interactive Viewer
 
@@ -224,6 +333,33 @@ update automatically from the JSON — no other viewer changes needed.
   improve macro F1 but adds complexity not needed for a first pass.
 - No handling yet of lead-missing or noisy real-world recordings (relevant to Job 2 — see
   the separate PulseDB project).
+- **2D tissue patch, not 3D:** the reentry substrate is a flat 5cm×5cm sheet (openCARP's
+  `21_reentry_induction` example), not a volumetric/anatomically-shaped chamber model —
+  real atrial tissue has wall thickness and curvature that affect rotor stability.
+- **Single induction attempt at one candidate site:** reentry was induced (and ground truth
+  generated) from one S1-S2-style stimulus location near the fibrotic patch edge, not a
+  systematic scan over multiple sites/timings — the induced rotor is a real, sustained
+  result, but it's one realization, not a statistical characterization of where rotors
+  tend to anchor on this substrate.
+- **Phase computed via raw Hilbert transform** of mean-subtracted Vm, the simplest standard
+  method — optical-mapping literature also uses a phase-space (Vm, dVm/dt) formulation,
+  which can be more robust to noise; not needed here since simulated Vm is noise-free.
+- **Fixed 3mm radius for ablation-target labeling** around the phase-singularity trajectory
+  is a simplification standing in for any clinically-derived lesion-size rationale.
+- **Unipolar EGM approximated as local Vm**, not a true bidomain/lead-field-derived
+  extracellular potential — a monodomain-only simulation has no extracellular domain to
+  sample from directly; this is the standard workaround for feature-engineering studies
+  where full forward-model electrograms are out of scope. Bipolar EGM (the difference of two
+  such signals) is not an approximation — that part is exactly how real bipolar electrograms
+  are derived.
+- **Classifier training data comes from one simulated rotor on one mesh** (33 positive
+  electrode sites total) — the electrode-count sweep result (more local electrodes → better
+  ROC-AUC) is a real, reproducible finding, but the classifier itself hasn't been validated
+  against an independently induced rotor; that's the natural next experiment before trusting
+  it beyond this one substrate.
+- **Dominant-frequency search restricted to a 3-15Hz band**, the standard AF-literature
+  convention — an unrestricted FFT peak search picks up high-frequency edge content from
+  sharp, non-periodic deflections rather than genuine periodicity.
 - openCARP integration currently generates synthetic electrograms only; extending the
   electrical model toward pulsed-field-ablation-style lesion prediction (electric field
   magnitude as a lesion-likelihood proxy) is the natural next step, given the target
