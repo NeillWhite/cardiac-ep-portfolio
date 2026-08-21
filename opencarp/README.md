@@ -96,6 +96,26 @@ Output layout for a successful run (`<job_dir>/point_<node>/beat_<n>/`):
   not the main data
 - `reentries.txt` (job-dir level) — one line per confirmed induction: `node S2_start_ms beat_n bcl_ms`
 
+### 2a. Multi-rotor runs (for cross-rotor classifier validation)
+
+`run.py`'s stimulus location is hardcoded (`centre = np.asarray([args.slabsize/7., args.slabsize/2., 0.])`,
+identical in the `RP_B`/`RP_E`/`PEERP` branches — search for `centre = np.asarray` around
+lines 561/568/576) — there's no CLI flag for it. To induce a genuinely independent second/third
+rotor from a different stimulus site on the same substrate, copy the example directory fresh
+and patch that line, e.g. for the mirror-opposite side:
+
+```bash
+sed -i 's|args.slabsize/7\.|args.slabsize*6/7.|g' run.py   # rotor B: opposite side
+sed -i 's|args.slabsize/7\., args.slabsize/2\.|args.slabsize/2., args.slabsize/7.|g' run.py  # rotor C: below the patch
+```
+
+Copy the already-generated `prepace_block_.../` steady-state directory into the new copy
+first (substrate-only, doesn't depend on stimulus site — reuses several minutes of compute).
+Both patched runs induced sustained rotors on the first try with the same `RP_B` parameters
+that worked for the original site, anchored at different points around the fibrotic patch
+edge depending on approach direction — see README.md §6 for the cross-rotor classifier
+validation this was for.
+
 ## 3. Basic tissue EP example (simpler reference, not the primary path)
 
 `/openCARP/examples/02_EP_tissue/01_basic_usage/run.py` — single stimulus, thin monolayer,

@@ -281,10 +281,43 @@ framing anyway — "check the top-N riskiest sites") instead of 0.5: precision 0
 and `dom_freq_std` — cluster-*spread* features — highest, matching the relational-signature
 hypothesis directly.
 
+**Cross-rotor validation (run 2026-08-21):** the k=1..8 sweep above was validated entirely
+*within* rotor A — the spatial checkerboard split controls for nearby electrodes leaking
+across train/test, but every electrode, train or test, still came from one single induced
+rotor. To test real generalization, two more independent rotors were induced from different
+stimulus sites on the same substrate (`opencarp/README.md` §"multi-rotor runs" — a patched
+copy of openCARP's example script with the hardcoded stimulus location moved): rotor B from
+the mirror-opposite side of the tissue, rotor C from below the patch. Both produced sustained
+rotors (401/401 phase-singularity detection each) anchored at different points around the
+same fibrotic patch — physically sensible, since each approaches from a different direction.
+
+A first pairwise check (train on A, test on B, and vice versa) was **not** encouraging: mean
+ROC-AUC peaked around k=2 (≈0.80) and *degraded* with more electrodes, dropping to 0.52
+(chance) at k=6 — suggesting the larger clusters' extra features were overfitting to
+rotor-A-specific idiosyncrasies rather than learning transferable physiology.
+
+With a third rotor, **leave-one-rotor-out** cross-validation (train on 2 pooled rotors, test
+on the held-out third, rotated across all 3) told a more complete and encouraging story:
+
+![Leave-one-rotor-out generalization](results/phase2_reentry_2026-08-20/leave_one_rotor_out.png)
+
+Mean ROC-AUC stayed well above chance at every k (0.70-0.84), with **k=2 as a clear,
+consistent peak across all three held-out rotors individually** (0.87 / 0.86 / 0.79). Unlike
+the pairwise check, larger clusters (k=6-8) no longer collapsed toward chance once *two*
+independent rotors' worth of data were pooled for training — pooling more independent
+instances stabilizes the larger, more overfit-prone feature sets, exactly as you'd expect.
+Practical read: **a 2-electrode local cluster gives the most reliable, generalizable signal**
+found so far; larger clusters are plausible but need more independent training rotors than
+we have to trust confidently.
+
 **End-of-Phase-2 review gate:** per `docs/IMPLEMENTATION_PLAN.md` §8, this is the checkpoint
-before Phase 3. Real signal exists (ROC-AUC well above chance, feature importances that make
-physiological sense) but the hard-decision numbers are modest — expected given only 33
-positive electrode sites total, all drawn from one simulated rotor on one mesh.
+before Phase 3. Real, genuinely cross-rotor-validated signal exists (leave-one-out ROC-AUC
+0.70-0.84 across 3 independent inductions) — a meaningfully stronger claim than a single
+within-rotor number would support. Hard-decision numbers remain modest (small positive
+counts per rotor, 22-33 sites each), and 3 rotors is still a small sample for fully trusting
+the larger-k results, but the core finding (local cluster features carry real, transferable
+signal about rotor-adjacency) held up under the most rigorous test we could run at this
+scale. Full narrative walkthrough (words + code) in `docs/PHASE2_METHODOLOGY.md`.
 
 ## 7. Interactive Viewer
 
