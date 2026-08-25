@@ -304,19 +304,45 @@ electrode measurements can stand in for that expensive global computation.
 
 A real catheter doesn't read transmembrane voltage (`Vm`) directly — `Vm` is the voltage
 *across the cell membrane*, not measurable from outside the cell. What a catheter actually
-measures is **extracellular potential**: the voltage in the fluid just outside the cells,
-which is what genuinely "unipolar" and "bipolar" electrograms are built from. Computing true
-extracellular potential properly requires either a full bidomain simulation (we ran
-monodomain — cheaper, but it only solves for `Vm`, not the extracellular field) or a separate
-forward-model calculation. That's real, additional machinery outside this project's scope.
+measures is **extracellular potential** (`phi_e`): the voltage in the fluid just outside the
+cells, which is what genuinely "unipolar" and "bipolar" electrograms are built from.
 
-So we use the standard simplification for monodomain-only studies: **approximate the
-"unipolar EGM" at a site as just the local `Vm(t)`.** This is a real, named limitation
-(documented in the README), not something to gloss over. The **bipolar EGM**, on the other
-hand, genuinely isn't an approximation at all: real bipolar electrograms are always computed
-as the difference between two nearby unipolar signals, and that's exactly what we do —
-`bipolar(t) = Vm(site_A, t) - Vm(site_B, t)` for two points ~2mm apart, matching typical
-clinical electrode spacing.
+The heart's tissue has two physically coupled electrical compartments: the *intracellular*
+space (inside cells, connected cell-to-cell via gap junctions) and the *extracellular* space
+(the fluid bathing them). As a cell depolarizes, current crosses the membrane between the two
+and flows back through the extracellular fluid to complete the circuit. There are two ways to
+get a genuine `phi_e` out of a simulation:
+
+1. **Run a bidomain simulation.** This solves for both compartments explicitly — two coupled
+   equations tracking intracellular potential and `phi_e` as *separate* quantities everywhere
+   in the tissue (and any surrounding bath/blood pool). `phi_e` is directly in the output, so
+   you can read off "what would an electrode at this exact spot measure."
+2. **Run monodomain (cheaper — what we did), then a separate forward-model calculation** on
+   top of its `Vm` output (a "pseudo-ECG"/lead-field integral) to compute what `phi_e` *would
+   have been* at any point, without rerunning the main simulation.
+
+Monodomain is a mathematical shortcut valid under a simplifying assumption (intracellular and
+extracellular conductivity proportional to each other); under that assumption, the two
+coupled bidomain equations collapse into *one* equation for `Vm` — the *difference* between
+the two potentials, not either one individually. That's cheaper to solve (the reason it's the
+common default, including in the openCARP example we used — its `parameters.par` explicitly
+sets `bidomain = 0`), but the cost is real: a monodomain simulation's output simply never
+contains `phi_e`. It isn't hidden in there waiting to be extracted; the math only ever tracked
+the difference.
+
+**We did neither of the two genuine options above.** We took a cheaper shortcut than both:
+**approximate the "unipolar EGM" at a site as just the local `Vm(t)`** — not a derivation of
+extracellular potential by any method, just reusing the transmembrane voltage number directly
+as a stand-in. This is a real, named limitation (documented in the README), not something to
+gloss over.
+
+One more thing worth being precise about, since it's easy to overstate: the **bipolar EGM**
+computation itself — `bipolar(t) = unipolar_A(t) - unipolar_B(t)` — genuinely *is* the
+standard, correct way real bipolar electrograms are always derived from two unipolar ones,
+regardless of what the unipolar inputs actually are. But that procedure is only as good as
+its inputs, and ours are the `Vm`-as-stand-in shortcut above, not true `phi_e` — so the
+resulting bipolar signal inherits that same approximation. It doesn't escape it just because
+the subtraction step is standard.
 
 ### In code
 
@@ -454,18 +480,57 @@ rows.append({
 })
 ```
 
-`lat_spread_ms` (the biggest single win, per feature-importance analysis in the README) is
-the key relational feature: max LAT minus min LAT *among this candidate site and its
-neighbors*. A smoothly propagating wavefront activates a small local cluster at almost the
-same time (small spread); a site near a wavebreak/core sees genuinely inconsistent local
-timing (large spread) — because, physically, that's what "near a topological winding" means
-for activation timing. The `_std` and `_min`/`_mean` variants of amplitude, fractionation,
-and frequency are the same idea applied to the other features: not "what does one point look
-like," but "how much does this small neighborhood *disagree with itself*."
+`lat_spread_ms` was *intended* as the key relational feature: max LAT minus min LAT *among
+this candidate site and its neighbors*, on the theory that a smoothly propagating wavefront
+activates a small local cluster at almost the same time (small spread), while a site near a
+wavebreak/core sees genuinely inconsistent local timing (large spread). **That theory turned
+out to be substantially wrong in practice — see §9a below**, where hands-on exploration in
+`opencarp/feature_exploration.ipynb` found the actual top features are `bipolar_amp_std` and
+`dom_freq_std`/`dom_freq_mean` (cluster *variability* in amplitude and frequency, not LAT
+timing). The `_std`/`_min`/`_mean` variants of amplitude, fractionation, and frequency share
+the same underlying idea — not "what does one point look like," but "how much does this
+small neighborhood *disagree with itself*" — and that part of the hypothesis held up; the LAT
+half specifically didn't, for a concrete, diagnosable reason.
 
 This is computed once per candidate site *for every k from 1 to 8* (adding one more neighbor
 each time), which is what makes the electrode-count sweep (§11) possible — same feature
 *definitions*, just built from a growing amount of local spatial information.
+
+### 9a. Correction, found via hands-on exploration: `lat_spread_ms` doesn't actually separate the classes
+
+Opening the raw signals up in a notebook (exactly the kind of check a data-science-first
+approach catches that a "the AUC looked fine" pass doesn't) found this directly: **median
+`lat_spread_ms` is 221ms for ablation-target sites and 219.5ms for background sites** —
+essentially identical. The permutation-importance chart
+(`results/phase2_reentry_2026-08-20/classifier_results.png`) already showed this, correctly —
+`lat_spread_ms` and `lat_std_ms` sit near zero importance, `bipolar_amp_std` dominates — but
+an earlier draft of this document claimed the opposite, misattributing the "biggest single
+win" to the wrong feature without checking the chart it cited. That's now fixed here.
+
+**Why the LAT-spread idea fails in practice, diagnosed concretely:** `compute_lat` (§8) finds
+the single steepest downstroke *anywhere in the whole 400ms window* — but that window
+contains roughly 2-3 separate beats (rotor cycle length ≈150-200ms). Nothing forces
+neighboring sites to pick the *same* beat as each other's steepest one; cycle-to-cycle
+variation in upstroke sharpness means two sites 2mm apart can easily each have a different
+beat register as "their" steepest downstroke, producing an apparent spread on the order of an
+entire cycle length (100-200+ms) — regardless of whether those two sites are actually near a
+core or not. Sampling 60 random background clusters confirmed this isn't a rare edge case:
+**55/60 (92%) had a spread over 100ms**, with the same right-skewed, cycle-length-scale
+distribution as the ablation-target sites. The feature isn't measuring "local timing
+disagreement near a core" at all, for the most part — it's measuring "which of ~2-3 candidate
+beats each site's independent argmin happened to land on," which is close to a coin flip
+almost everywhere.
+
+This doesn't undermine the *cluster-vs-single-site* finding overall — `bipolar_amp_std` and
+`dom_freq_std`/`dom_freq_mean` are still cluster-relational features in the same family, and
+they're the ones actually carrying the signal in the electrode-count sweep (§11) and the
+cross-rotor validation (§12). It does mean the specific "wavebreak → inconsistent timing"
+story for *why* clustering helps needs a caveat: the amplitude- and frequency-based cluster
+features are doing the real work; the LAT-spread mechanism, as currently computed, isn't. A
+concrete, scoped fix — restricting LAT to a single reference beat instead of a global argmin
+over the whole multi-beat window — is left as a scaffolded exercise in the notebook (§5,
+`local_conduction_velocity`) rather than done here, since it changes a core function used
+throughout the pipeline and deserves its own dedicated validation pass before trusting it.
 
 ---
 
@@ -478,9 +543,9 @@ sequence of small decision trees, each one trained to correct the previous ones'
 Deliberately not a deep model on raw waveforms, per the project's stated philosophy: with
 only ~9 hand-engineered, physically meaningful features, a small tree ensemble is both
 plenty expressive enough and — crucially — the kind of model whose feature importances a
-domain expert can actually sanity-check (§9's finding that `lat_spread_ms` and
-`bipolar_amp_std` dominate is a real, checkable claim; "the deep net learned something" is
-not).
+domain expert (or a data scientist willing to check the underlying signals, per §9a) can
+actually sanity-check: `bipolar_amp_std` and `dom_freq_std`/`dom_freq_mean` dominate, and that
+claim is verifiable against the raw traces, unlike "the deep net learned something."
 
 Two practical issues had to be handled explicitly, both because ablation-target sites are
 rare (~5% of all sites):
@@ -671,8 +736,11 @@ If you need to explain this in 60 seconds:
 3. The actual ML question is harder and more useful: can a **few local electrodes**, without
    that expensive full-field computation, predict "near the core"? Single electrodes
    couldn't (ROC-AUC 0.61) — the core's signature is inherently about *disagreement between
-   neighboring points* (activation-timing spread, voltage variability), not any one point's
-   own signal.
+   neighboring points*, not any one point's own signal. In practice that showed up as
+   cluster-level *amplitude and frequency* variability (`bipolar_amp_std`, `dom_freq_std`),
+   not the activation-timing spread the theory predicted (§9a) — timing spread turned out to
+   be swamped by a separate multi-beat measurement artifact, a good example of a plausible
+   mechanism not surviving contact with the actual data.
 4. Small local clusters of electrodes fixed that within one rotor (up to ROC-AUC 0.91), but a
    pairwise check against a **second, independently induced rotor** showed that gain doesn't
    fully hold up alone — performance peaked around 2 local electrodes and got noisier with

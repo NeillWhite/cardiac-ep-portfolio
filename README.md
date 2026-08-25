@@ -62,6 +62,11 @@ cardiac-ep-portfolio/
     ├── extract_cluster_features.py    # local-electrode-cluster features, swept over k=1..8
     ├── train_electrogram_classifier.py  # GBT classifier, single k (single-bipole or cluster CSV)
     ├── train_cluster_sweep.py         # trains the classifier at every k, produces the sweep plot
+    ├── train_cross_rotor.py           # pairwise train-on-A/test-on-B cross-rotor check
+    ├── train_leave_one_rotor_out.py   # leave-one-rotor-out CV across N independent rotors
+    ├── export_for_notebook.py         # dumps one rotor's mesh+Vm+labels to a portable .npz
+    ├── feature_exploration.ipynb      # hands-on EDA/feature-engineering/model-comparison notebook
+    ├── notebook_data/               # not committed — regenerable via export_for_notebook.py
     └── runs/                        # not committed — raw sim output (meshes, IGB, checkpoints)
 ```
 
@@ -225,13 +230,20 @@ before building any classifier on top.
 
 ### Phase 2 — electrogram-feature classifier (rotor-adjacency prediction, run 2026-08-20)
 
-**Virtual electrode sampling (`opencarp/extract_cluster_features.py`):** 676 sites on a 2mm
-grid across the tissue (matching typical clinical mapping-catheter spacing). Simplifying
-assumption: this is a monodomain-only simulation, so there's no true extracellular potential
-to sample — unipolar EGM is approximated as the local transmembrane voltage Vm(t) (standard
-practice when full bidomain/lead-field forward modeling is out of scope), and bipolar EGM is
-the difference between two such signals ~2mm apart, which *is* exactly how real bipolar
-electrograms are derived, so that half isn't an approximation.
+**Virtual electrode sampling (`opencarp/extract_cluster_features.py`):** 576 sites on a 2mm
+grid across the tissue (matching typical clinical mapping-catheter spacing; excludes
+candidates within one neighbor-offset of the mesh boundary — see the bug note below).
+Simplifying
+assumption: a real catheter measures extracellular potential (`phi_e`), which this
+monodomain-only simulation never computes (only `Vm`, the transmembrane difference — getting
+a true `phi_e` needs either a full bidomain run or a separate lead-field forward-model
+calculation on top of `Vm`, neither of which we did) — unipolar EGM is approximated as the
+local `Vm(t)` directly instead (standard shortcut when that machinery is out of scope), and
+bipolar EGM is the difference between two such signals ~2mm apart. That subtraction step
+*is* exactly how real bipolar electrograms are derived from unipolar ones — but since our
+"unipolar" inputs are themselves the `Vm` approximation, the resulting bipolar signal
+inherits that same approximation; it doesn't escape it. Full explanation in
+`docs/PHASE2_METHODOLOGY.md` §7.
 
 **First attempt failed, honestly reported:** a single fixed-direction bipolar pair per site,
 with the plan's four listed features (bipolar amplitude, fractionation, LAT, dominant
@@ -255,31 +267,47 @@ electrodes does this need?":
 
 ![Electrode count sweep](results/phase2_reentry_2026-08-20/cluster_sweep.png)
 
-ROC-AUC jumps from 0.68 (k=1) to 0.85 (k=3) then plateaus/climbs slowly to 0.91 (k=8) — most
-of the achievable signal comes from just 3-4 local electrodes, consistent with the
-relational-signature hypothesis (LAT spread across a small cluster directly captures "this
-patch of tissue isn't propagating like a smooth planar wavefront," the actual signature of
-being near a wavebreak). Averaged over 10 spatial-split repeats (checkerboard 5mm blocks, see
-below) for stability given the small positive count.
+ROC-AUC climbs from 0.67 (k=1) to 0.83-0.85 by k=3-5, up to 0.90 at k=8 — most of the
+achievable signal comes from just a few local electrodes. Averaged over 10 spatial-split
+repeats (checkerboard 5mm blocks, see below) for stability given the small positive count.
 
 **Detailed result at k=4** (four cardinal neighbors — a physically realistic small
-cross/grid catheter, right where returns start diminishing):
+cross/grid catheter):
 
 ![Classifier results at k=4](results/phase2_reentry_2026-08-20/classifier_results.png)
 ![Spatial check: predictions vs. ground truth](results/phase2_reentry_2026-08-20/classifier_spatial_check.png)
 
-**ROC-AUC 0.882, average precision 0.209** (base rate 4.5%) on a held-out **spatial**
+**ROC-AUC 0.889, average precision 0.274** (base rate 5.7%) on a held-out **spatial**
 checkerboard test set (5mm blocks — a naive random split would leak, since neighboring
 electrodes are highly spatially correlated within one simulated rotor). At the default 0.5
 probability threshold, hard predictions were spatially scattered despite good ranking
 quality — a calibration artifact of the aggressive class-reweighting needed for ~5% positive
 prevalence, not a real signal problem. Fixed by using a **prevalence-matched threshold**
 (flag the top ~5% of test electrodes by predicted probability, the practically relevant
-framing anyway — "check the top-N riskiest sites") instead of 0.5: precision 0.26, recall
+framing anyway — "check the top-N riskiest sites") instead of 0.5: precision 0.28, recall
 0.31 for the ablation-target class. Feature importances (permutation-based, since
 `HistGradientBoostingClassifier` has no built-in `feature_importances_`) rank `bipolar_amp_std`
-and `dom_freq_std` — cluster-*spread* features — highest, matching the relational-signature
-hypothesis directly.
+and `dom_freq_std`/`dom_freq_mean` — cluster-*variability* in amplitude and frequency —
+clearly highest; `lat_spread_ms`/`lat_std_ms` (the originally-hypothesized "timing spread near
+a wavebreak" mechanism) turned out to carry almost no importance at all. See
+`docs/PHASE2_METHODOLOGY.md` §9a for the diagnosis: LAT is computed as the single steepest
+downstroke across the whole multi-beat window, and neighboring sites frequently pick a
+*different* one of the ~2-3 available beats as "theirs," producing an apparent spread on the
+order of a full cycle length almost everywhere (92% of a random 60-site background sample had
+spread >100ms) — regardless of true core proximity. That's a genuine, diagnosed limitation of
+the current LAT feature, not a project-wide failure — the amplitude/frequency cluster
+features are still real signal.
+
+**Two bugs found via hands-on exploration in `opencarp/feature_exploration.ipynb`,
+fixed, and all above numbers re-verified against the fix:** (1) the LAT-timing issue above,
+and (2) a genuine correctness bug in `extract_cluster_features.py`'s edge handling — for any
+candidate site within one neighbor-offset of a mesh boundary (~15% of all sites, 100/676),
+mirroring out-of-bounds directions could make two supposedly-different neighbors resolve to
+the *same* mesh node, silently duplicating a "distinct electrode." Fixed by simply excluding
+near-edge candidates from the sampling grid (576 sites now, also more physically realistic).
+Re-running the full pipeline with the fix moved every headline number by roughly 0.01-0.03
+AUC — small, and the qualitative story held — but worth catching and documenting rather than
+assuming a bug that only touches background-class examples wouldn't matter.
 
 **Cross-rotor validation (run 2026-08-21):** the k=1..8 sweep above was validated entirely
 *within* rotor A — the spatial checkerboard split controls for nearby electrodes leaking
@@ -292,8 +320,8 @@ rotors (401/401 phase-singularity detection each) anchored at different points a
 same fibrotic patch — physically sensible, since each approaches from a different direction.
 
 A first pairwise check (train on A, test on B, and vice versa) was **not** encouraging: mean
-ROC-AUC peaked around k=2 (≈0.80) and *degraded* with more electrodes, dropping to 0.52
-(chance) at k=6 — suggesting the larger clusters' extra features were overfitting to
+ROC-AUC peaked around k=2 (≈0.80) and *degraded* with more electrodes, dropping to ≈0.56
+(near chance) at k=6 — suggesting the larger clusters' extra features were overfitting to
 rotor-A-specific idiosyncrasies rather than learning transferable physiology.
 
 With a third rotor, **leave-one-rotor-out** cross-validation (train on 2 pooled rotors, test
@@ -301,8 +329,8 @@ on the held-out third, rotated across all 3) told a more complete and encouragin
 
 ![Leave-one-rotor-out generalization](results/phase2_reentry_2026-08-20/leave_one_rotor_out.png)
 
-Mean ROC-AUC stayed well above chance at every k (0.70-0.84), with **k=2 as a clear,
-consistent peak across all three held-out rotors individually** (0.87 / 0.86 / 0.79). Unlike
+Mean ROC-AUC stayed well above chance at every k (0.70-0.85), with **k=2 as a clear,
+consistent peak across all three held-out rotors individually** (0.89 / 0.87 / 0.79). Unlike
 the pairwise check, larger clusters (k=6-8) no longer collapsed toward chance once *two*
 independent rotors' worth of data were pooled for training — pooling more independent
 instances stabilizes the larger, more overfit-prone feature sets, exactly as you'd expect.
@@ -312,12 +340,16 @@ we have to trust confidently.
 
 **End-of-Phase-2 review gate:** per `docs/IMPLEMENTATION_PLAN.md` §8, this is the checkpoint
 before Phase 3. Real, genuinely cross-rotor-validated signal exists (leave-one-out ROC-AUC
-0.70-0.84 across 3 independent inductions) — a meaningfully stronger claim than a single
+0.70-0.85 across 3 independent inductions) — a meaningfully stronger claim than a single
 within-rotor number would support. Hard-decision numbers remain modest (small positive
 counts per rotor, 22-33 sites each), and 3 rotors is still a small sample for fully trusting
-the larger-k results, but the core finding (local cluster features carry real, transferable
-signal about rotor-adjacency) held up under the most rigorous test we could run at this
-scale. Full narrative walkthrough (words + code) in `docs/PHASE2_METHODOLOGY.md`.
+the larger-k results, but the core finding (local cluster *variability* features carry real,
+transferable signal about rotor-adjacency) held up under the most rigorous test we could run
+at this scale — with the caveat that the LAT-timing half of the original mechanism turned out
+not to hold up under scrutiny (see above and `docs/PHASE2_METHODOLOGY.md` §9a). Full
+narrative walkthrough (words + code) in `docs/PHASE2_METHODOLOGY.md`; hands-on feature
+exploration (raw-signal visualization, EDA, new feature scaffolding, model comparison) in
+`opencarp/feature_exploration.ipynb`.
 
 ## 7. Interactive Viewer
 
@@ -380,11 +412,12 @@ update automatically from the JSON — no other viewer changes needed.
 - **Fixed 3mm radius for ablation-target labeling** around the phase-singularity trajectory
   is a simplification standing in for any clinically-derived lesion-size rationale.
 - **Unipolar EGM approximated as local Vm**, not a true bidomain/lead-field-derived
-  extracellular potential — a monodomain-only simulation has no extracellular domain to
-  sample from directly; this is the standard workaround for feature-engineering studies
-  where full forward-model electrograms are out of scope. Bipolar EGM (the difference of two
-  such signals) is not an approximation — that part is exactly how real bipolar electrograms
-  are derived.
+  extracellular potential — a monodomain-only simulation never computes the extracellular
+  field (only `Vm`, the transmembrane difference); this is the standard workaround for
+  feature-engineering studies where full forward-model electrograms are out of scope.
+  Bipolar EGM (the difference of two such signals) uses exactly the standard real-world
+  derivation procedure, but since it's built from the approximate unipolar signals above, the
+  result inherits that same approximation rather than escaping it.
 - **Classifier training data comes from one simulated rotor on one mesh** (33 positive
   electrode sites total) — the electrode-count sweep result (more local electrodes → better
   ROC-AUC) is a real, reproducible finding, but the classifier itself hasn't been validated

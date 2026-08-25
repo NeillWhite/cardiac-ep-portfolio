@@ -10,3 +10,5 @@ __pycache__/
 .DS_Store
 opencarp/output/
 opencarp/runs/
+opencarp/notebook_data/
+tmp/

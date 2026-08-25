@@ -46,6 +46,16 @@ DIRECTIONS = [
 FRACTIONATION_DERIV_THRESHOLD_FRAC = 0.05
 DF_BAND_HZ = (3.0, 15.0)
 STRIDE = 5  # candidate-site grid spacing in mesh nodes (2mm)
+MARGIN_NODES = OFFSET_NODES  # exclude candidates within one neighbor-offset of a mesh edge
+# (bug found via opencarp/feature_exploration.ipynb §2: clip_dir's edge-mirroring makes
+# opposite-direction neighbors (e.g. E and W) collapse onto the SAME node for any candidate
+# sitting exactly on a boundary row/column -- silently duplicating a "neighbor" instead of
+# sampling a genuinely different point. Affected ~15% of candidates (100/676) in every
+# reported result so far, though 0 were ever ablation-target-positive since the induced
+# rotors' cores stayed well clear of the domain edge in all 3 runs. Simplest, most honest fix:
+# don't sample candidates close enough to an edge to need mirroring in the first place --
+# also more physically realistic, since a real catheter wouldn't probe literally at the
+# tissue boundary either.
 
 
 def load_grid(mesh_prefix):
@@ -122,7 +132,11 @@ def main():
 
     rows = []
     for iy in range(0, ny, STRIDE):
+        if iy < MARGIN_NODES or iy > ny - 1 - MARGIN_NODES:
+            continue
         for ix in range(0, nx, STRIDE):
+            if ix < MARGIN_NODES or ix > nx - 1 - MARGIN_NODES:
+                continue
             cand_id = node_id(ix, iy)
             uni_c = vm[cand_id, :]
             lat_c = lat_all_ms[cand_id]

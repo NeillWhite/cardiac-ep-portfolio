@@ -6,3 +6,5 @@ torch>=2.0
 matplotlib>=3.7
 pandas>=2.0
 tqdm>=4.65
+jupyter>=1.0      # Phase 2 feature-exploration notebook (opencarp/feature_exploration.ipynb)
+seaborn>=0.13      # same
