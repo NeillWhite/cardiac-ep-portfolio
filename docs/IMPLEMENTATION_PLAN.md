@@ -1,8 +1,8 @@
-# Cardiac EP Simulation + ML Portfolio Project — Implementation Plan
+# Cardiac EP Simulation + ML — Implementation Plan
 
-Target role: Scientist, Staff (ML & Simulations) — cardiac electrophysiology mapping +
-pulsed-field-ablation (PFA) company. This plan is written to be handed to a coding agent
-(e.g. Claude Code) running on a Linux server with Docker and GPU access.
+Scope: machine learning + biophysics simulation for cardiac electrophysiology mapping and
+pulsed-field ablation (PFA). This plan is written to be handed to a coding agent (e.g.
+Claude Code) running on a Linux server with Docker and GPU access.
 
 Companion artifact: `cardiac-ep-portfolio.zip` (Phase 1 scaffold, already smoke-tested with
 synthetic data — code compiles and the training/eval loop runs end to end. Real PTB-XL
@@ -13,7 +13,7 @@ network access to PhysioNet).
 
 ## 1. Goal & Success Criteria
 
-Produce a portfolio project demonstrating, in order of priority (matching JD language):
+The project sets out to demonstrate, in priority order:
 
 1. Hands-on cardiac simulation tooling (openCARP)
 2. ML applied to cardiac signals (ECG, unipolar/bipolar electrograms)
@@ -21,13 +21,13 @@ Produce a portfolio project demonstrating, in order of priority (matching JD lan
 4. A defensible, literature-grounded definition of "optimal ablation site" — not just a
    model that outputs a number, but a documented rationale a reviewer with EP knowledge
    would find credible
-5. (Stretch) A nod to pulsed-field-ablation-specific biophysics, since that's this
-   company's actual technology, not thermal RF ablation
+5. (Stretch) A nod to pulsed-field-ablation-specific biophysics — PFA, not thermal RF
+   ablation, is the modality of interest here
 
 **Definition of done for the whole project:** a public repo with working code, a README
 that reads like a design document, real (not synthetic) results with honest limitations,
-and at least one artifact (plot, notebook, or writeup) per phase that you could screen-share
-in an interview and explain line by line.
+and at least one artifact (plot, notebook, or writeup) per phase that can be walked
+through and explained line by line.
 
 ---
 
@@ -123,7 +123,7 @@ mapping needs the full time series and dense spatial sampling; a model that infe
 a rotor-adjacent site" from local electrogram features alone is the kind of shortcut that's
 genuinely useful for real-time guidance. This maps directly to "hand-on experience with
 cardiac simulation tools" + "ML in cardiac anatomy and electrophysiology, ECG, unipolar/
-bipolar electrogram" in the JD.
+bipolar electrogram" — the standard clinical signals.
 
 Feature candidates to extract per electrode site (standard EP signal features, keep it
 interpretable rather than reaching for deep learning here first):
@@ -135,7 +135,7 @@ interpretable rather than reaching for deep learning here first):
 A gradient-boosted tree or small MLP on these features is a defensible, explainable first
 model — resist the urge to jump straight to a deep model on raw electrogram waveforms for
 this phase; interpretability matters more than squeezing out accuracy here, and it's easier
-to defend in an interview.
+to defend.
 
 ### 4.3 Concrete openCARP steps
 
@@ -180,7 +180,7 @@ Only start once Phase 2 has a working simulation → feature → prediction pipe
      surrogate framing may not apply — be honest about this in the writeup rather than
      forcing an ML surrogate where a simple algorithmic optimization is the real answer
 4. Benchmark before/after with real wall-clock numbers on the actual server, not estimates
-5. Optional but adds credibility given the JD's "Python, C++, MATLAB": reimplement the
+5. Optional but adds credibility (and exercises C++ alongside the Python): reimplement the
    single hottest inner loop in C++ (pybind11 or a simple CLI called from Python) and
    report the speedup. Don't rewrite the whole pipeline in C++ — one well-chosen hot path
    is a stronger, more honest signal than an unfinished full rewrite
@@ -263,7 +263,7 @@ biophysics" section in the README is a perfectly credible stopping point.
 Paste this to the coding agent on the Linux server to kick off Phase 1:
 
 ```
-I'm building a portfolio project for a cardiac electrophysiology ML role. Full plan is in
+I'm building a cardiac-electrophysiology simulation + ML project. Full plan is in
 docs/IMPLEMENTATION_PLAN.md — read it in full before starting. Also extract
 and review cardiac-ep-portfolio.zip, which has a Phase 1 scaffold already written and
 smoke-tested with synthetic data (but never run against real PTB-XL data).

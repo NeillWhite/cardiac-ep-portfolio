@@ -2,14 +2,13 @@
 
 **Status:** agreed 2026-08-28. This is the current plan for the project's back half. It
 replaces the old `IMPLEMENTATION_PLAN.md` §5 ("Phase 3 — Real-Time Optimization"). A 3D
-non-contact-mapping variant was considered and dropped as a different skill set.
+non-contact-mapping variant was considered and dropped.
 
-**Framing:** the biophysics simulator (openCARP + our phase-singularity / ablation pipeline)
-is the centre of gravity — Duty 1 of the target role, *"develop biophysics-based simulations
-to predict optimal ablation sites."* The ML is scoped to Duty 2, *"optimize the simulation
-compute resources … to provide real-time feedback"* — a surrogate that reproduces the
-simulation's answer fast enough to use during a procedure. **No C++** (openCARP itself is
-compiled, so the latency comparison is honest).
+**Framing:** the biophysics simulator (openCARP + the phase-singularity / ablation
+pipeline) is the centre of gravity — *develop biophysics-based simulations to predict
+optimal ablation sites*. The ML is scoped to *making that prediction fast enough to use
+during a procedure* — a surrogate that reproduces the simulation's answer in milliseconds.
+**No C++** (openCARP itself is compiled, so the latency comparison is honest).
 
 ---
 
@@ -24,11 +23,11 @@ compiled, so the latency comparison is honest).
 - **Risk:** the rotor may not sustain 5 s on the 5 cm patch. If it dies early, report the
   actual survival time and use what we get (still ≫ 400 ms); consider a larger sheet or
   stronger anchor only if it's badly short.
-- The user gets fluent in this pipeline (see the primer, `docs/OPENCARP_SIMULATION_PRIMER.html`).
+- The simulation layer is documented in `docs/OPENCARP_SIMULATION_PRIMER.html` before Phase 3 builds on it.
 
 ---
 
-## Phase 3 — Simulate ablation outcomes → "optimal ablation site" *(the spine — Duty 1)*
+## Phase 3 — Simulate ablation outcomes → "optimal ablation site" *(the spine)*
 
 Turn "rotor core = ablation target" (a proxy label) into an actual in-silico test of
 ablation.
@@ -56,7 +55,7 @@ before building the surrogate.
 
 ---
 
-## Phase 4 — ML surrogate for real-time *(the ML showcase — Duty 2)*
+## Phase 4 — ML surrogate for real-time
 
 Phase 3 costs N counterfactual simulations per case (minutes–hours). Train a model that
 predicts the ablation-efficacy map **without** running them.

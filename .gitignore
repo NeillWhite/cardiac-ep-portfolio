@@ -13,3 +13,8 @@ opencarp/runs/
 opencarp/notebook_data/
 tmp/
 tutorial.tgz
+
+# personal / job-prep materials — kept local, never published
+docs/PROJECT_WALKTHROUGH.html
+docs/ep-primer.html
+prompts/

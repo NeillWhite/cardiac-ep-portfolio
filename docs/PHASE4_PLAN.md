@@ -5,8 +5,8 @@ Supersedes the Phase 4 sketch in `PHASE3_4_PLAN.md`, which predicted "the effica
 G3 showed that target is sparse and rotor-specific, and that the real target is the
 **functional core**.
 
-**Role anchor:** Duty 1 (biophysics simulation → predict optimal ablation sites) + Duty 2
-(optimize the simulation compute with ML for real-time feedback). No C++.
+**Goal:** take the Phase 3 target (biophysics simulation → optimal ablation site) and make
+it fast — predict it with ML instead of running the simulation, for real-time use. No C++.
 
 ---
 
@@ -72,7 +72,7 @@ openCARP image. Every earlier success reused the shipped prepace and never hit t
 
 **Gate 4a:** functional cores spread across the sheet; amplitude still tracks them.
 
-### Stage 2 — the classifier *(user drives, I support)*
+### Stage 2 — the classifier
 
 - HistGBT on per-electrode features (interpretable, fast) → probability of
   functional-core-adjacency. Small CNN on the electrode-grid feature image as an
@@ -80,7 +80,7 @@ openCARP image. Every earlier success reused the shipped prepace and never hit t
 - **Leave-one-substrate-out** cross-validation.
 - Report: per-electrode AUC/AP, and the downstream centroid-localisation error.
 
-### Stage 3 — the real-time / compute-optimisation story *(Duty 2)*
+### Stage 3 — the real-time / compute-optimisation story
 
 - **Profile** the full pipeline (openCARP induction + free-run + activation analysis)
   wall-clock vs. the surrogate (feature extraction + inference) on this machine.

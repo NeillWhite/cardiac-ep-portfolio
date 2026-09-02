@@ -1,6 +1,6 @@
 # Phase 4 — surrogate for the ablation target (findings)
 
-**Plan:** `PHASE4_PLAN.md`. **Goal (Duty 2 of the role):** predict the ablation target fast, from a
+**Plan:** `PHASE4_PLAN.md`. **Goal:** predict the ablation target fast, from a
 short electrogram recording, instead of running the biophysics pipeline.
 
 ---

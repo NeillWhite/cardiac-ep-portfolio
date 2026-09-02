@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A portfolio project for a Staff Scientist (ML & Simulations) role at a cardiac
-electrophysiology / pulsed-field-ablation (PFA) company. It has two mostly-independent
-tracks that eventually connect:
+Machine learning and biophysics simulation for cardiac ablation targeting — predicting
+where to ablate to terminate a reentrant rotor. It has two mostly-independent tracks that
+eventually connect:
 
 1. **ECG classification** (`scripts/`) — PyTorch baseline on real PTB-XL data.
 2. **openCARP simulation** (`opencarp/`) — biophysics simulation of cardiac tissue,

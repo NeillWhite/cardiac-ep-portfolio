@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cardiac EP Simulation + ML</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --paper: #F7F3EC; --paper-raised: #FFFFFE; --ink: #211D1B; --ink-soft: #55504A;
+  --muted: #8C8479; --line: #E3D9C9; --accent: #A85A22; --accent-ink: #7A4118;
+  --link: #16505F; --link-line: #A8CDD6;
+  --display: 'Space Grotesk', sans-serif; --body: 'Source Serif 4', Georgia, serif;
+  --mono: 'IBM Plex Mono', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17130F; --paper-raised: #201A14; --ink: #F2EBE0; --ink-soft: #CBC0AF;
+    --muted: #8F8577; --line: #382F24; --accent: #E08A45; --accent-ink: #F0AA71;
+    --link: #9AD9E8; --link-line: #234C57;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17130F; --paper-raised: #201A14; --ink: #F2EBE0; --ink-soft: #CBC0AF;
+  --muted: #8F8577; --line: #382F24; --accent: #E08A45; --accent-ink: #F0AA71;
+  --link: #9AD9E8; --link-line: #234C57;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--body); font-size: 18px; line-height: 1.7;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 64px 28px 96px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 13px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 14px;
+}
+h1 {
+  font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.15;
+  letter-spacing: -0.01em; margin: 0 0 18px; text-wrap: balance;
+}
+.lede { font-size: 19px; color: var(--ink-soft); margin: 0 0 14px; }
+p { max-width: 66ch; }
+a { color: var(--link); text-decoration-color: var(--link-line); }
+h2 {
+  font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--accent); margin: 44px 0 14px;
+}
+.card-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.card {
+  display: block; padding: 16px 18px; background: var(--paper-raised);
+  border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: inherit;
+}
+.card:hover { border-color: var(--accent); }
+.card .t { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--ink); }
+.card .d { font-size: 15px; color: var(--ink-soft); margin-top: 3px; }
+.card .t::after { content: " ↦"; color: var(--muted); }
+.phase-row { display: flex; gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.phase-row:last-child { border-bottom: none; }
+.phase-row .n {
+  font-family: var(--mono); font-size: 13px; color: var(--accent-ink);
+  flex-shrink: 0; width: 4.5em;
+}
+.phase-row .x { font-size: 16px; color: var(--ink-soft); }
+.phase-row .x strong { color: var(--ink); font-weight: 600; }
+footer {
+  margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 13px; color: var(--muted);
+}
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Cardiac EP · Simulation · ML</p>
+  <h1>Where do you ablate to stop a rotor?</h1>
+  <p class="lede">
+    Machine learning and biophysics simulation applied to cardiac ablation targeting.
+  </p>
+  <p>
+    Atrial fibrillation is often sustained by <em>rotors</em> — rotating electrical waves
+    in the heart wall. Ablation tries to stop them by destroying tissue. This project works
+    through the open question of <em>where</em>, in four phases — and finds that the obvious
+    target (the rotor's pivot point) is the wrong one.
+  </p>
+
+  <h2>Start here</h2>
+  <ul class="card-list">
+    <li><a class="card" href="https://github.com/NeillWhite/cardiac-ep-portfolio">
+      <div class="t">Source repository</div>
+      <div class="d">All code, the design-document README, and per-phase findings with real numbers.</div>
+    </a></li>
+  </ul>
+
+  <h2>The four phases</h2>
+  <div class="phases">
+    <div class="phase-row"><span class="n">Phase 1</span><span class="x"><strong>ECG classification.</strong> A 1-D CNN on real 12-lead PTB-XL recordings — the signal-analysis baseline. Macro-F1 0.61, honestly reported.</span></div>
+    <div class="phase-row"><span class="n">Phase 2</span><span class="x"><strong>Rotor simulation + ground truth.</strong> Induce a reentrant rotor in openCARP, track its core by phase-singularity detection, train an electrogram classifier for core-adjacency.</span></div>
+    <div class="phase-row"><span class="n">Phase 3</span><span class="x"><strong>Simulate the ablation.</strong> Drop lesions at candidate sites, measure what terminates the rotor. Finding: ablate the nearby <em>functional core</em>, not the phase singularity.</span></div>
+    <div class="phase-row"><span class="n">Phase 4</span><span class="x"><strong>Real-time surrogate.</strong> A gradient-boosted model predicts the functional core from a 600 ms electrogram window — 1.8 mm median error, ~1600× faster than the simulation.</span></div>
+  </div>
+
+  <h2>Theory tutorials</h2>
+  <ul class="card-list">
+    <li><a class="card" href="OPENCARP_SIMULATION_PRIMER.html">
+      <div class="t">openCARP simulation primer</div>
+      <div class="d">How the rotor pipeline works: ionic model, substrate, induction, phase singularities.</div>
+    </a></li>
+    <li><a class="card" href="BIDOMAIN_MONODOMAIN_TUTORIAL.html">
+      <div class="t">Bidomain / monodomain tutorial</div>
+      <div class="d">The cardiac-tissue EP equations the simulator solves, built up from the equivalent-circuit picture.</div>
+    </a></li>
+  </ul>
+
+  <footer>
+    <p>cardiac-ep-portfolio · <a href="https://github.com/NeillWhite/cardiac-ep-portfolio">github.com/NeillWhite/cardiac-ep-portfolio</a></p>
+  </footer>
+</div>
+</body>
+</html>

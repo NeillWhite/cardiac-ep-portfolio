@@ -1,14 +1,22 @@
-# Cardiac EP Simulation + ML Portfolio Project
+# Cardiac EP Simulation + ML
 
-A two-part project built for cardiac electrophysiology / ablation-focused ML roles:
+Machine learning and biophysics simulation applied to cardiac ablation targeting. The
+project works through one question — *where do you ablate to stop a rotor?* — in four
+phases:
 
-1. **Real ECG signal classification** (PTB-XL) — arrhythmia detection baseline. *(Phase 1 — start here)*
-2. **Biophysics-based EP simulation** (openCARP) — synthetic tissue/electrogram generation,
-   eventually extended toward pulsed-field-ablation-relevant lesion modeling. *(Phase 2+)*
+1. **ECG signal classification** (PTB-XL) — arrhythmia-detection baseline on real clinical data.
+2. **Rotor simulation + ground truth** (openCARP) — induce a reentrant rotor in simulated
+   tissue, track its core, and train an electrogram classifier for core-adjacency.
+3. **Simulate the ablation** — drop lesions at candidate sites and measure what terminates
+   the rotor. Finding: the rotor's pivot (phase singularity) is the *wrong* target; the
+   nearby **functional core** is the right one.
+4. **Real-time surrogate** — a fast ML model that predicts the functional core from a
+   600 ms electrogram window, ~1600× faster than the simulation.
 
-This README is written like a lightweight design document, mirroring how a medical device
-company documents requirements → verification → results, since that's the environment
-this project targets.
+The **[rendered docs site](https://neillwhite.github.io/cardiac-ep-portfolio/)** has the
+two theory tutorials (bidomain/monodomain EP, the openCARP pipeline) in readable form. This
+README is the design-document view: requirements → verification → results, in the style a
+medical-device team documents its work.
 
 ---
 
@@ -23,7 +31,7 @@ clinical ECGs, and a simulation pipeline that can later be optimized for speed w
 
 | Requirement | Target | Rationale |
 |---|---|---|
-| Classification accuracy (macro F1) | ≥ 0.75 on PTB-XL superclass labels | Baseline competitive with published PTB-XL results |
+| Classification accuracy (macro F1) | ≥ 0.70 on PTB-XL superclass labels | Baseline competitive with published PTB-XL results — ⚠️ current 0.61, gap is entirely the HYP class (see §6) |
 | Inference latency | < 50ms per 10s 12-lead ECG | ✅ verified 0.339ms CPU / 0.151ms GPU, see `docs/MODEL_ARCHITECTURE.md` §2 — ~100x headroom, was never the bottleneck |
 | Simulation reproducibility | Deterministic given fixed seed/mesh | Required for any verification claim |
 | Code portability | Runs on CPU-only machine | Reviewers shouldn't need a GPU to check your work |
@@ -35,10 +43,18 @@ cardiac-ep-portfolio/
 ├── README.md
 ├── CLAUDE.md
 ├── requirements.txt
-├── docs/
-│   ├── IMPLEMENTATION_PLAN.md  # authoritative project plan, phases, review gates
-│   ├── MODEL_ARCHITECTURE.md   # Phase 1 CNN architecture + design rationale
-│   └── ep-primer.html          # cardiac EP field-guide reference doc
+├── docs/                       # also served as a site via GitHub Pages
+│   ├── index.html              # landing page for the Pages site
+│   ├── IMPLEMENTATION_PLAN.md   # project plan: phases, review gates, ground-truth definition
+│   ├── MODEL_ARCHITECTURE.md    # Phase 1 CNN architecture + design rationale
+│   ├── PHASE2_METHODOLOGY.md    # Phase 2 narrative walkthrough (words + code)
+│   ├── PHASE3_FINDINGS.md       # Phase 3 ablation-outcome results
+│   ├── PHASE3_4_PLAN.md         # Phase 3 + 4 plan
+│   ├── PHASE4_PLAN.md           # Phase 4 plan
+│   ├── PHASE4_FINDINGS.md       # Phase 4 surrogate results
+│   ├── BIDOMAIN_MONODOMAIN_TUTORIAL.html  # the EP theory the simulator solves
+│   ├── OPENCARP_SIMULATION_PRIMER.html    # how the rotor pipeline works
+│   └── figures/                 # figures embedded in the README and HTML docs
 ├── data/                   # not committed — see download instructions below
 ├── scripts/
 │   ├── download_ptbxl.py   # pulls PTB-XL from PhysioNet via wfdb
@@ -66,6 +82,18 @@ cardiac-ep-portfolio/
     ├── train_leave_one_rotor_out.py   # leave-one-rotor-out CV across N independent rotors
     ├── export_for_notebook.py         # dumps one rotor's mesh+Vm+labels to a portable .npz
     ├── feature_exploration.ipynb      # hands-on EDA/feature-engineering/model-comparison notebook
+    ├── regen_5s/                    # re-induce the 3 reference rotors with 5 s windows + checkpoints
+    ├── phase3/                      # Phase 3: lesion sweep, functional-core detection, efficacy maps
+    │   ├── lesion_sweep.py            # branch a rotor, drop a lesion at each grid site, score termination
+    │   ├── functional_core.py         # weak-activation centroid = the ablation target
+    │   ├── plot_efficacy.py           # efficacy maps + radius curves
+    │   └── illustrate*.py             # the Phase 3 figures
+    ├── phase4/                      # Phase 4: real-time surrogate
+    │   ├── gen_one.sh / gen_dataset.sh  # PSD-protocol varied-substrate rotor generator (32 configs)
+    │   ├── extract_features.py        # per-electrode features from a 600 ms window
+    │   ├── train.py                   # HistGBT, leave-one-config-out, localisation error
+    │   ├── benchmark.py               # surrogate latency vs. the biophysics pipeline
+    │   └── closed_loop*.sh            # ablate the predicted site, check the effect
     ├── notebook_data/               # not committed — regenerable via export_for_notebook.py
     └── runs/                        # not committed — raw sim output (meshes, IGB, checkpoints)
 ```
@@ -351,6 +379,57 @@ narrative walkthrough (words + code) in `docs/PHASE2_METHODOLOGY.md`; hands-on f
 exploration (raw-signal visualization, EDA, new feature scaffolding, model comparison) in
 `opencarp/feature_exploration.ipynb`.
 
+### Phase 3 — simulate ablation outcomes (2026-09-01)
+
+After Phase 2 the project shifted to a **simulation-centered** framing — biophysics
+simulation to predict optimal ablation sites, with ML scoped to making that prediction
+fast. The phase-singularity trajectory tracker was rewritten (the old greedy linker froze on any
+>3 mm frame jump — control rotor went from a 1-point "trajectory" to 99% frame coverage;
+`docs/OPENCARP_SIMULATION_PRIMER.html` explains the sim layer). Three rotors were
+regenerated with 5 s windows.
+
+**Phase 3 (`docs/PHASE3_FINDINGS.md`, `opencarp/phase3/`):** branch a sustained rotor from a
+mid-run state checkpoint, drop a circular non-conductive lesion (`gi_scale_vec`), and check
+whether the rotor terminates. Across all three rotors:
+
+- A 6 mm lesion on the tracked **phase singularity never terminates the rotor** — it
+  re-forms its pivot a few mm away on the same circuit.
+- The effective target is the **functional core** — the centroid of tissue that activates
+  *weakly* over a cycle — which sits 7–8 mm from the phase singularity, near the anchoring
+  fibrosis, and is the *same place* for all three rotors here.
+- A ~5 mm-radius lesion at the functional core terminates each rotor in ~200 ms; targeting
+  it instead of the pivot roughly **halves** the lesion size needed (rotor C: 12 mm → 5 mm)
+  and removes the non-monotonic size behaviour (except for the strongly meandering rotor A).
+- The functional core is **observable from electrogram amplitude** (corr ≈ 0.45–0.5),
+  which is what Phase 4 predicts from.
+
+![Phase 3 overview — the three rotors, their tracked cores, and the terminating lesion sites](docs/figures/fig_overview.png)
+
+![Phase 3 target — functional core vs. phase singularity vs. which lesions actually terminate rotor A](docs/figures/fig_target.png)
+
+More figures (`fig_mechanism_A.png`, `fig_circuit.png`, and the per-rotor
+`efficacy_map_r6000.png` / `efficacy_radius_curve.png`) regenerate with
+`opencarp/phase3/illustrate*.py` and `plot_efficacy.py` from the (gitignored) sim output.
+
+### Phase 4 — real-time surrogate for the ablation target (`docs/PHASE4_FINDINGS.md`, run 2026-09-02)
+
+A per-electrode gradient-boosted classifier predicts the functional-core ablation target
+from a **600 ms window** of virtual-electrogram features, skipping the openCARP induction +
+activation analysis. Trained on **32 rotors on varied fibrotic substrates** (generated via
+the PSD protocol), evaluated leave-one-config-out:
+
+- per-electrode ROC-AUC **0.970**
+- **localisation error: median 1.8 mm** (vs. 4.2 mm for "ablate the lowest-voltage patch",
+  6.5 mm for "always the centre") — inside the ~5 mm lesion radius that terminates a rotor
+- holds on sparse grids: ~80 electrodes (mapping-catheter scale) → 2.8 mm
+- **latency: ~53 ms vs. ~86 s** for the biophysics pipeline it replaces (~1600×)
+- dominant feature: local mean unipolar amplitude (confirms the Phase 3 signal)
+- closed-loop: ablating the predicted spot slows the (robust, PSD-seeded) rotors ~1.6×;
+  clean termination shown for the Phase 3 rotors, transitively expected here
+
+This is the "optimize the simulation compute … to provide real-time feedback" goal — a
+model that reproduces the simulation's answer fast enough to use during a procedure.
+
 ## 7. Interactive Viewer
 
 A browser-based viewer over the Phase 1 test-set predictions — self-contained single HTML
@@ -396,8 +475,7 @@ update automatically from the JSON — no other viewer changes needed.
   weighting.
 - Baseline uses a simple 1D-CNN; a resnet-style or transformer architecture would likely
   improve macro F1 but adds complexity not needed for a first pass.
-- No handling yet of lead-missing or noisy real-world recordings (relevant to Job 2 — see
-  the separate PulseDB project).
+- No handling yet of lead-missing or noisy real-world recordings.
 - **2D tissue patch, not 3D:** the reentry substrate is a flat 5cm×5cm sheet (openCARP's
   `21_reentry_induction` example), not a volumetric/anatomically-shaped chamber model —
   real atrial tissue has wall thickness and curvature that affect rotor stability.
@@ -430,11 +508,19 @@ update automatically from the JSON — no other viewer changes needed.
   electrical model toward pulsed-field-ablation-style lesion prediction (electric field
   magnitude as a lesion-likelihood proxy) is the natural next step, given the target
   company's PFA-based platform.
-- No latency optimization / ML surrogate yet — that's Phase 3 of the overall plan.
+- **Phase 3 lesions are instantaneous conductivity holes**, not modelled pulsed-field
+  physics (field magnitude → electroporation threshold → lesion shape); 3 rotors, one
+  fibrosis-model family, 2D.
+- **Phase 4 rotors are seeded (PSD), not paced**, and the closed-loop `gi_scale_vec` lesion
+  mechanism silently no-ops on PSD-seeded state restarts (cause unresolved; worked around by
+  baking lesions into the substrate) — so Phase 4's *termination* claim rests transitively
+  on Phase 3.
 
 ## 9. Why This Project
 
-Built to demonstrate the specific overlap of skills requested in cardiac EP / ablation ML
-roles: interpreting real cardiac signals (ECG, electrograms), hands-on use of a cardiac
-simulation tool (openCARP), and an understanding of the real-time compute constraints that
-matter in an actual mapping/ablation system.
+The hard, unsolved part of cardiac ablation is knowing *where* to ablate — and unlike
+arrhythmia classification, nothing labels "optimal ablation site" directly. This project
+takes that on end to end: interpret real cardiac signals (Phase 1), build a rotor in
+simulation and define a defensible target (Phase 2), test that target by simulating the
+ablation itself (Phase 3), then make the prediction fast enough to be useful in real time
+(Phase 4) — documenting every simplification and reporting the honest numbers throughout.

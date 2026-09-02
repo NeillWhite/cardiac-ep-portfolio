@@ -137,12 +137,24 @@ Once a working reentry simulation exists:
   analogous to what a real mapping catheter records, and the actual ML input (plan §4.2)
 - **Conduction velocity fields** — useful for identifying slow-conduction zones
 
-## 5. Toward Phase 3 (real-time optimization)
+## 5. Phase 3 — simulate ablation outcomes (done, gate G3 closed 2026-09-01)
 
-Once there's a working simulation → feature → prediction pipeline, profile it (usually the
-PDE solve dominates) and train a fast ML surrogate — see main plan §5.
+Tooling in `opencarp/phase3/`. Branch a sustained rotor from a mid-run state checkpoint,
+drop a circular non-conductive lesion (`gi_scale_vec` conductivity scaling — keeps the
+ionic-region layout so the checkpoint restores), sweep the lesion over a grid of candidate
+sites, and score termination straight from the voltage field (not the PS tracker). Result
+and figures: `docs/PHASE3_FINDINGS.md`. Headline: a lesion on the tracked phase singularity
+never terminates the rotor; a ~5 mm-radius lesion on the nearby **functional core** does.
 
-## 6. Toward the PFA angle
+## 6. Phase 4 — real-time surrogate (done 2026-09-02)
+
+Tooling in `opencarp/phase4/`. 32 rotors on varied fibrotic substrates via the **PSD
+protocol** (`gen_*.sh` — skips the prepace/`bench` step that segfaults in this image),
+per-electrode HistGBT predicting functional-core adjacency from a 600 ms electrogram window,
+leave-one-config-out. Result: `docs/PHASE4_FINDINGS.md` (ROC-AUC 0.97, 1.8 mm median
+localisation, ~1600× faster than the biophysics).
+
+## 7. Toward the PFA angle (not started)
 
 Optional, lowest priority — see main plan §6. Search terms if/when this is picked up:
 "irreversible electroporation cardiac tissue model", "pulsed field ablation lesion
