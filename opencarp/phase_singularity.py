@@ -13,10 +13,14 @@ are present there but not assumed on the host):
 
 Method (standard cardiac optical-mapping phase mapping, not invented for this project):
   1. Hilbert-transform each node's (mean-subtracted) Vm time series -> instantaneous phase.
+     (Reflect-padded before the transform so its edge distortion is trimmed away.)
   2. For every elementary unit cell of the regular mesh grid, sum the wrapped phase
      difference around the 4 corners each frame; a total near +-2*pi marks a phase
      singularity (topological charge +-1) -- the rotor core for that frame.
-  3. Link one PS per frame into a trajectory via nearest-neighbour continuity.
+  3. Link per-frame PS into a trajectory: seed from the first singularity that persists
+     ~in place (not frame 0), associate each frame within a TIGHT gate (default 1 mm)
+     preferring charge continuity, and COAST through detection gaps with a gate that
+     widens per missed frame before re-acquiring. See track_trajectory().
   4. Label mesh nodes within a fixed radius of any trajectory point as ablation targets.
 """
 import argparse
@@ -65,10 +69,23 @@ def load_elem_tags(elem_path):
     return np.array(tris), np.array(tags)
 
 
-def compute_phase(vm, detrend=True):
-    """vm: (n_nodes, n_time) -> phase: (n_nodes, n_time) in (-pi, pi]."""
+def compute_phase(vm, detrend=True, pad_frac=0.25, pad_max=250):
+    """vm: (n_nodes, n_time) -> phase: (n_nodes, n_time) in (-pi, pi].
+
+    The Hilbert transform is non-local and its output is distorted near the ends
+    of the signal. Since the tracker seeds from the *first* usable frames, that
+    distortion lands exactly where it hurts. Mitigate by reflect-padding the time
+    axis before the transform and trimming the pad afterwards, so the retained
+    signal's edges are interior to the padded transform.
+    """
     x = vm - vm.mean(axis=1, keepdims=True) if detrend else vm
-    analytic = hilbert(x, axis=1)
+    n_time = x.shape[1]
+    pad = min(int(pad_frac * n_time), pad_max)
+    if pad > 0:
+        xp = np.pad(x, ((0, 0), (pad, pad)), mode="reflect")
+        analytic = hilbert(xp, axis=1)[:, pad:pad + n_time]
+    else:
+        analytic = hilbert(x, axis=1)
     return np.angle(analytic)
 
 
@@ -94,30 +111,96 @@ def detect_ps_frame(phase_grid, charge_tol=0.15, border=2):
     return hits
 
 
-def track_trajectory(ps_by_frame, xs, ys, max_jump_um=3000.0):
-    """Greedy nearest-neighbour linking of one PS per frame into a single trajectory.
-    Returns list of dict(frame, t_ms, x, y, charge)."""
+def _frame_candidates(hits, xs, ys):
+    """cell (ix, iy) -> (centroid_x, centroid_y, charge)."""
+    return [
+        (0.5 * (xs[ix] + xs[ix + 1]), 0.5 * (ys[iy] + ys[iy + 1]), charge)
+        for (ix, iy, charge) in hits
+    ]
+
+
+def _find_seed(frames, start, persist_frames, seed_radius_um):
+    """First candidate (from frame index >= start) that stays within
+    `seed_radius_um` of its own position for `persist_frames` consecutive frames.
+    Avoids seeding the tracker on a transient / edge-effect detection.
+    Returns (frame_index, x, y, charge) or None."""
+    for i in range(start, len(frames)):
+        _, cands = frames[i]
+        for (cx, cy, cch) in cands:
+            held = 0
+            for j in range(i, min(i + persist_frames, len(frames))):
+                _, cj = frames[j]
+                if any(np.hypot(x - cx, y - cy) <= seed_radius_um for (x, y, _) in cj):
+                    held += 1
+                else:
+                    break
+            if held >= persist_frames:
+                return (i, cx, cy, cch)
+    return None
+
+
+def track_trajectory(ps_by_frame, xs, ys,
+                     gate_um=1000.0, gate_growth_um=900.0, max_gate_um=5000.0,
+                     max_coast_frames=60, seed_persist_frames=10,
+                     seed_radius_um=1200.0):
+    """Link per-frame phase singularities into a trajectory with a TIGHT per-frame
+    gate plus explicit gap handling.
+
+    - Seed from the first singularity that persists ~in place for
+      `seed_persist_frames` frames (not frame 0, which is Hilbert-edge noisy).
+    - Each frame, associate to the nearest detection within `gate_um`, preferring
+      the same charge sign. A detection outside the gate is NOT linked.
+    - On a miss, COAST: hold the last position, append nothing, and on later
+      frames widen the search gate by `gate_growth_um` per coasted frame (capped
+      at `max_gate_um`) so a briefly-lost core can be re-acquired.
+    - After `max_coast_frames` with no re-acquisition, end the segment and try to
+      re-seed further along; segments are concatenated, with `gap=True` marking
+      the first point after any coast or break.
+
+    Returns list of dict(frame, x, y, charge, gap).
+    """
+    frames = [(fi, _frame_candidates(hits, xs, ys)) for fi, hits in ps_by_frame]
     traj = []
-    prev_xy = None
-    for frame_idx, hits in ps_by_frame:
-        if not hits:
+
+    seed = _find_seed(frames, 0, seed_persist_frames, seed_radius_um)
+    if seed is None:  # degenerate: never persistent -- fall back to first hit
+        for i, (_, cands) in enumerate(frames):
+            if cands:
+                seed = (i, cands[0][0], cands[0][1], cands[0][2])
+                break
+    if seed is None:
+        return traj
+
+    i, px, py, pch = seed
+    traj.append({"frame": frames[i][0], "x": px, "y": py, "charge": pch,
+                 "gap": False, "reseed": False})
+    coast = 0
+    i += 1
+    while i < len(frames):
+        fi, cands = frames[i]
+        gate = min(gate_um + gate_growth_um * coast, max_gate_um)
+        in_gate = [(np.hypot(x - px, y - py), x, y, ch) for (x, y, ch) in cands
+                   if np.hypot(x - px, y - py) <= gate]
+        if in_gate:
+            in_gate.sort(key=lambda t: (t[3] != pch, t[0]))  # same charge first, then nearest
+            _, px, py, pch = in_gate[0]
+            traj.append({"frame": fi, "x": px, "y": py, "charge": pch,
+                         "gap": coast > 0, "reseed": False})
+            coast = 0
+            i += 1
             continue
-        # cell (ix, iy) -> physical centroid coords
-        candidates = [
-            (0.5 * (xs[ix] + xs[ix + 1]), 0.5 * (ys[iy] + ys[iy + 1]), charge)
-            for (ix, iy, charge) in hits
-        ]
-        if prev_xy is None:
-            # first detection: just take the first hit
-            x, y, charge = candidates[0]
-        else:
-            dists = [np.hypot(x - prev_xy[0], y - prev_xy[1]) for (x, y, _) in candidates]
-            best = int(np.argmin(dists))
-            if dists[best] > max_jump_um:
-                continue  # discontinuity -- skip rather than jump implausibly far
-            x, y, charge = candidates[best]
-        traj.append({"frame": frame_idx, "x": x, "y": y, "charge": charge})
-        prev_xy = (x, y)
+
+        coast += 1
+        i += 1
+        if coast > max_coast_frames:
+            reseed = _find_seed(frames, i, seed_persist_frames, seed_radius_um)
+            if reseed is None:
+                break
+            i, px, py, pch = reseed
+            traj.append({"frame": frames[i][0], "x": px, "y": py, "charge": pch,
+                         "gap": True, "reseed": True})
+            coast = 0
+            i += 1
     return traj
 
 
@@ -140,6 +223,8 @@ def main():
     ap.add_argument("--out", default=None, help="output dir (default: sim_dir)")
     ap.add_argument("--radius-um", type=float, default=3000.0,
                      help="ablation-target labeling radius around PS trajectory")
+    ap.add_argument("--gate-um", type=float, default=1000.0,
+                     help="tight per-frame association gate for the tracker (um)")
     ap.add_argument("--t-dim", type=int, default=None,
                      help="override auto-detected axis if reshape sanity check fails")
     args = ap.parse_args()
@@ -175,8 +260,17 @@ def main():
     n_frames_with_ps = sum(1 for _, h in ps_by_frame if h)
     print(f"Phase singularities detected in {n_frames_with_ps}/{n_time} frames")
 
-    traj = track_trajectory(ps_by_frame, xs, ys)
-    print(f"Tracked trajectory length: {len(traj)} points")
+    traj = track_trajectory(ps_by_frame, xs, ys, gate_um=args.gate_um)
+    if traj:
+        n_coast = sum(1 for p in traj if p["gap"] and not p["reseed"])
+        n_reseed = sum(1 for p in traj if p["reseed"])
+        span = traj[-1]["frame"] - traj[0]["frame"] + 1
+        print(f"Tracked trajectory: {len(traj)} points over frames "
+              f"{traj[0]['frame']}-{traj[-1]['frame']} "
+              f"({100.0 * len(traj) / span:.0f}% coverage; {n_coast} brief gaps re-acquired, "
+              f"{n_reseed} segment re-seeds)")
+    else:
+        print("Tracked trajectory: 0 points (no persistent singularity found)")
 
     labels = label_ablation_targets(pts, traj, radius_um=args.radius_um)
     print(f"Ablation-target nodes: {labels.sum()} / {n_nodes} "
@@ -189,6 +283,8 @@ def main():
         traj_x=np.array([p["x"] for p in traj]),
         traj_y=np.array([p["y"] for p in traj]),
         traj_charge=np.array([p["charge"] for p in traj]),
+        traj_gap=np.array([p["gap"] for p in traj], dtype=bool),
+        traj_reseed=np.array([p["reseed"] for p in traj], dtype=bool),
         ablation_target=labels,
         t=t,
         radius_um=args.radius_um,
