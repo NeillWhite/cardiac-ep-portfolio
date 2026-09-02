@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bidomain and Monodomain Cardiac Electrophysiology</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)']],
+      displayMath: [['\\[', '\\]']],
+      tags: 'none',
+      macros: {
+        Vm: '{V_m}',
+        phii: '{\\varphi_i}',
+        phie: '{\\varphi_e}',
+        sigi: '{\\boldsymbol{\\sigma}_i}',
+        sige: '{\\boldsymbol{\\sigma}_e}'
+      }
+    },
+    svg: { fontCache: 'global' },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+<style>
+/* ============================= tokens ============================= */
+:root {
+  --paper: #F7F3EC;
+  --paper-raised: #FFFFFE;
+  --paper-sunken: #EFE8DA;
+  --ink: #211D1B;
+  --ink-soft: #55504A;
+  --muted: #8C8479;
+  --line: #E3D9C9;
+  --line-strong: #D2C4AC;
+
+  --intra: #A85A22;
+  --intra-ink: #7A4118;
+  --intra-soft: #F3E4D3;
+  --intra-line: #E2BE97;
+
+  --extra: #1F6E82;
+  --extra-ink: #16505F;
+  --extra-soft: #DCEAEE;
+  --extra-line: #A8CDD6;
+
+  --vm: #6B4E82;
+  --vm-soft: #EAE2EF;
+
+  --good: #4C7A3D;
+  --bad: #A8412F;
+
+  --display: 'Space Grotesk', sans-serif;
+  --body: 'Source Serif 4', Georgia, serif;
+  --mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+
+  --shadow: 0 1px 2px rgba(40, 30, 15, 0.06), 0 6px 20px rgba(40, 30, 15, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17130F;
+    --paper-raised: #201A14;
+    --paper-sunken: #120F0C;
+    --ink: #F2EBE0;
+    --ink-soft: #CBC0AF;
+    --muted: #8F8577;
+    --line: #382F24;
+    --line-strong: #493D2E;
+
+    --intra: #E08A45;
+    --intra-ink: #F0AA71;
+    --intra-soft: #2E2015;
+    --intra-line: #5A3F22;
+
+    --extra: #6FC3D9;
+    --extra-ink: #9AD9E8;
+    --extra-soft: #12262C;
+    --extra-line: #234C57;
+
+    --vm: #C6A8E0;
+    --vm-soft: #241C2C;
+
+    --good: #7FBE6A;
+    --bad: #E08066;
+
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 24px rgba(0,0,0,0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #17130F;
+  --paper-raised: #201A14;
+  --paper-sunken: #120F0C;
+  --ink: #F2EBE0;
+  --ink-soft: #CBC0AF;
+  --muted: #8F8577;
+  --line: #382F24;
+  --line-strong: #493D2E;
+
+  --intra: #E08A45;
+  --intra-ink: #F0AA71;
+  --intra-soft: #2E2015;
+  --intra-line: #5A3F22;
+
+  --extra: #6FC3D9;
+  --extra-ink: #9AD9E8;
+  --extra-soft: #12262C;
+  --extra-line: #234C57;
+
+  --vm: #C6A8E0;
+  --vm-soft: #241C2C;
+
+  --good: #7FBE6A;
+  --bad: #E08066;
+
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 24px rgba(0,0,0,0.35);
+}
+
+/* ============================= base ============================= */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+::selection { background: var(--vm); color: var(--paper-raised); }
+
+a { color: var(--extra-ink); text-decoration-color: var(--extra-line); }
+a:hover { text-decoration-color: var(--extra-ink); }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--vm);
+  outline-offset: 2px;
+}
+
+.mono { font-family: var(--mono); }
+.i-term { color: var(--intra-ink); font-weight: 600; }
+.e-term { color: var(--extra-ink); font-weight: 600; }
+.vm-term { color: var(--vm); font-weight: 600; }
+
+.doc-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  max-width: 1220px;
+  margin: 0 auto;
+}
+
+/* ============================= sidebar ============================= */
+.toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 32px 20px 32px 28px;
+  border-right: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.toc .brand {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.toc .brand strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  margin-top: 2px;
+}
+
+.toc-list {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.toc-list a {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+  line-height: 1.35;
+}
+
+.toc-list a:hover { background: var(--paper-sunken); color: var(--ink); }
+.toc-list a.active { background: var(--intra-soft); color: var(--intra-ink); }
+.toc-list .num { color: var(--muted); flex-shrink: 0; width: 1.4em; }
+.toc-list a.active .num { color: var(--intra); }
+
+.toc-list li + li { margin-top: 1px; }
+.toc-list .sub { padding-left: 26px; font-size: 12px; }
+
+@media (max-width: 920px) {
+  .doc-shell { grid-template-columns: 1fr; }
+  .toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+}
+
+/* ============================= main content ============================= */
+main { min-width: 0; padding: 0 0 80px; }
+
+.hero {
+  padding: 56px 40px 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hero .eyebrow {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+
+.hero .lede {
+  font-size: 19px;
+  color: var(--ink-soft);
+  max-width: 66ch;
+  margin: 0 0 22px;
+}
+
+.two-domain-badge {
+  display: inline-flex;
+  gap: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  border: 1px solid var(--line-strong);
+}
+.two-domain-badge span {
+  padding: 5px 12px;
+  font-weight: 600;
+}
+.two-domain-badge .i { background: var(--intra-soft); color: var(--intra-ink); }
+.two-domain-badge .e { background: var(--extra-soft); color: var(--extra-ink); }
+
+.hero-note {
+  margin-top: 26px;
+  padding: 16px 18px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 15px;
+  color: var(--ink-soft);
+  max-width: 66ch;
+}
+.hero-note strong { color: var(--ink); }
+
+.content { padding: 0 40px; max-width: 900px; }
+
+section.chapter {
+  padding: 56px 0;
+  border-bottom: 1px solid var(--line);
+}
+section.chapter:last-of-type { border-bottom: none; }
+
+.chapter-head { margin-bottom: 28px; }
+
+.chapter-num {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--intra);
+  margin: 0 0 6px;
+}
+
+.chapter-head h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 30px;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.chapter-goal {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0;
+  padding-left: 2px;
+  line-height: 1.5;
+}
+
+h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 21px;
+  margin: 38px 0 12px;
+  letter-spacing: -0.005em;
+}
+
+h4 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  margin: 26px 0 10px;
+  color: var(--ink);
+}
+
+p { margin: 0 0 18px; max-width: 72ch; }
+ul, ol { margin: 0 0 18px; padding-left: 1.3em; max-width: 70ch; }
+li { margin-bottom: 8px; }
+p:last-child, ul:last-child, ol:last-child { margin-bottom: 0; }
+
+strong { font-weight: 600; }
+
+.callout {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--vm);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-size: 16.5px;
+  max-width: 72ch;
+}
+.callout p:last-child { margin-bottom: 0; }
+.callout .callout-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vm);
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* equations */
+.eq-plate {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 22px 0;
+  position: relative;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+.eq-plate .eq-tag {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.eq-plate.i-flavor { border-left: 3px solid var(--intra); }
+.eq-plate.e-flavor { border-left: 3px solid var(--extra); }
+
+.term-key {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 16px 0 24px;
+  font-size: 15.5px;
+  max-width: 72ch;
+}
+.term-key dt { font-family: var(--mono); color: var(--ink); white-space: nowrap; }
+.term-key dd { margin: 0; color: var(--ink-soft); }
+
+/* code / pseudocode */
+pre {
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 100%;
+}
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--paper-sunken);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+pre code { background: none; padding: 0; }
+
+/* figures */
+figure {
+  margin: 26px 0;
+  padding: 0;
+}
+figure svg { width: 100%; height: auto; display: block; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; }
+figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+figcaption {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 10px;
+  line-height: 1.5;
+  max-width: 72ch;
+}
+figcaption strong { color: var(--ink-soft); }
+
+.fig-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 640px) { .fig-pair { grid-template-columns: 1fr; } }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; margin: 20px 0; }
+table { border-collapse: collapse; font-size: 15px; min-width: 100%; }
+th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--mono); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 600; }
+
+/* practice problems */
+.problem {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 20px 0;
+  overflow: hidden;
+}
+.problem-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.problem-chip {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.chip-warmup { background: var(--extra-soft); color: var(--extra-ink); }
+.chip-core { background: var(--intra-soft); color: var(--intra-ink); }
+.chip-stretch { background: var(--vm-soft); color: var(--vm); }
+.problem-title { font-family: var(--display); font-weight: 600; font-size: 16px; }
+.problem-body { padding: 18px 20px; }
+.problem-body p:last-child { margin-bottom: 0; }
+
+details.solution {
+  margin-top: 14px;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 12px;
+}
+details.solution summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--vm);
+  font-weight: 600;
+  list-style: none;
+}
+details.solution summary::-webkit-details-marker { display: none; }
+details.solution summary::before { content: "▸ "; }
+details.solution[open] summary::before { content: "▾ "; }
+details.solution .solution-body { margin-top: 12px; font-size: 16px; }
+details.solution .solution-body p:first-child { margin-top: 0; }
+
+/* footer */
+.doc-footer {
+  padding: 40px 40px 0;
+  margin-top: 20px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+.doc-footer a { color: var(--muted); }
+
+/* misc */
+.small-caps-note { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+hr.sep { border: none; border-top: 1px dashed var(--line-strong); margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="doc-shell">
+
+<nav class="toc" id="toc">
+  <p class="brand">cardiac-ep-portfolio<strong>Bidomain / Monodomain Tutorial</strong></p>
+  <ul class="toc-list" id="toc-list">
+    <li><a href="#s1" data-target="s1"><span class="num">01</span> Physical setup</a></li>
+    <li><a href="#s2" data-target="s2"><span class="num">02</span> Equivalent circuit</a></li>
+    <li><a href="#s3" data-target="s3"><span class="num">03</span> Divergence &amp; conservation</a></li>
+    <li><a href="#s4" data-target="s4"><span class="num">04</span> The bidomain equations</a></li>
+    <li><a href="#s5" data-target="s5"><span class="num">05</span> Monodomain simplification</a></li>
+    <li><a href="#s6" data-target="s6"><span class="num">06</span> Discretization</a></li>
+    <li><a href="#s7" data-target="s7"><span class="num">07</span> Worked examples</a></li>
+    <li><a href="#s8" data-target="s8"><span class="num">08</span> Practice problems</a></li>
+  </ul>
+</nav>
+
+<main>
+  <header class="hero">
+    <p class="eyebrow">Reference document &middot; cardiac-ep-portfolio &middot; 2026-08-24</p>
+    <h1>Bidomain and Monodomain Cardiac Electrophysiology, From the Ground Up</h1>
+    <p class="lede">
+      Two coupled continuum equations describe how electrical activity moves through heart
+      tissue: one for the space inside cells, one for the space outside them &mdash;
+      <span class="two-domain-badge"><span class="i">intracellular&nbsp;\(\varphi_i\)</span><span class="e">extracellular&nbsp;\(\varphi_e\)</span></span>
+      &mdash; joined at every point by the cell membrane sitting between them. This document
+      derives that picture from a circuit you could build with a breadboard, shows why it
+      collapses to the single-equation <strong>monodomain</strong> model under one assumption,
+      and ends where this project's own openCARP simulations begin.
+    </p>
+    <div class="hero-note">
+      <strong>Why this document exists:</strong> Phase 2 of this project (<code>opencarp/</code>,
+      see <code>docs/PHASE2_METHODOLOGY.md</code>) ran a monodomain simulation and approximated
+      the unipolar electrogram as local \(\Vm\) directly &mdash; a documented shortcut, not a
+      derivation of extracellular potential. Understanding <em>why</em> that shortcut was
+      necessary, and what it costs, requires understanding bidomain first. §5 closes that loop
+      explicitly.
+    </div>
+  </header>
+
+  <div class="content">
+    <section class="chapter" id="s1">
+      <div class="chapter-head">
+        <p class="chapter-num">01 &middot; Physical setup and motivation</p>
+        <h2>What is cardiac tissue, for the purposes of this model?</h2>
+        <p class="chapter-goal">You should come out of this section able to explain, without notation, why cardiac tissue gets modeled as two overlapping continua instead of one, and instead of a literal cell-by-cell simulation.</p>
+      </div>
+
+      <p>
+        Physically, heart muscle is a dense pack of individual cells &mdash; cardiomyocytes,
+        roughly 100&nbsp;&micro;m long and 10&ndash;20&nbsp;&micro;m across &mdash; each wrapped
+        in its own membrane, each bathed in a shared extracellular fluid, and each electrically
+        connected to its neighbors through specialized low-resistance pores called
+        <strong>gap junctions</strong>. A gap junction is a direct channel between the interiors
+        of two adjacent cells: ions can cross from one cell's interior straight into the next
+        cell's interior without ever passing through the extracellular fluid. String enough
+        cells together this way, end to end and side to side, and you get a
+        <strong>syncytium</strong> &mdash; a tissue that behaves electrically like one continuous
+        conducting medium, even though it's built from billions of discrete, individually-membraned
+        cells.
+      </p>
+
+      <p>
+        That word "syncytium" is doing real work here, and it's the first reason a continuum
+        model is defensible rather than just convenient. If cells were electrically isolated from
+        each other &mdash; if the only way current could get from one cell to the next were by
+        first crossing a membrane out into the extracellular fluid and then crossing another
+        membrane back in &mdash; you'd have no choice but to model every cell and every gap
+        individually, because there'd be no sense in which nearby cells "average out" into
+        anything smooth. But gap junctions make the intracellular space of thousands of
+        neighboring cells behave, for signals with wavelengths much larger than a single cell,
+        like one continuously connected conductor. A propagating wavefront in real cardiac
+        tissue is millimeters to centimeters wide &mdash; hundreds of cell-lengths &mdash; so from
+        the wave's point of view, the graininess of individual cells and individual gap junctions
+        washes out, the same way a photograph of sand looks like a smooth beach from far enough
+        away.
+      </p>
+
+      <h3>Why homogenize instead of simulating every cell</h3>
+      <p>
+        There's also a purely practical reason, and it's worth being honest that it matters
+        alongside the physical justification above: a single square centimeter of tissue holds on
+        the order of 10<sup>5</sup>&ndash;10<sup>6</sup> individual myocytes. Explicitly meshing
+        every cell membrane, every gap junction, and the literal, geometrically irregular sliver
+        of extracellular space between every pair of adjacent cells, for a whole simulated
+        chamber, is not a computation anyone runs &mdash; not because it's theoretically
+        impossible, but because it would cost many orders of magnitude more than the continuum
+        approach for information the continuum approach already captures faithfully at the scale
+        that matters clinically (millimeter-to-centimeter wavefronts, not micron-scale cell
+        boundaries).
+      </p>
+      <p>
+        So instead of tracking the literal geometry, the model <strong>homogenizes</strong>:
+        it replaces "a huge number of discrete cells and gaps, each with their own tiny
+        conductivity and geometry" with "a smooth conductivity value at every point in space,"
+        chosen so that the smooth version reproduces the same current-carrying behavior the real
+        discrete tissue has, on average, at every point. This is the same move continuum mechanics
+        always makes &mdash; you don't track individual water molecules to compute fluid flow
+        either &mdash; and it's valid for exactly the reason given above: the phenomena of
+        interest (wavefronts, rotors) live at a spatial scale far larger than the thing being
+        averaged away (single cells).
+      </p>
+
+      <h3>Why <em>two</em> domains occupying the same space</h3>
+      <p>
+        Here is the idea that makes "bidomain" more than a naming quirk, and it's worth sitting
+        with because it's genuinely a little strange the first time you see it. At any physical
+        point inside a block of cardiac tissue, there is <em>both</em> intracellular material
+        (some cell's cytoplasm, or a gap junction connecting two cells) <em>and</em>, extremely
+        nearby at the same homogenized point, extracellular material (interstitial fluid). The
+        homogenization in the previous section doesn't pick one or the other to smooth over &mdash;
+        it smooths <em>both</em> separately, producing two interpenetrating continuous media that
+        mathematically coexist at every point of the same physical tissue volume:
+      </p>
+      <ul>
+        <li>
+          <span class="i-term">The intracellular domain</span> &mdash; the smoothed-out
+          continuum standing in for "all the cell interiors and gap junctions, averaged
+          together." Its electrical potential at a point is written \(\phii\).
+        </li>
+        <li>
+          <span class="e-term">The extracellular domain</span> &mdash; the smoothed-out continuum
+          standing in for "all the interstitial fluid, averaged together." Its potential is
+          written \(\phie\).
+        </li>
+      </ul>
+      <p>
+        "Bi-domain" literally means this: two domains, each occupying the full tissue volume
+        simultaneously, each carrying its own current, coupled to each other only through the
+        cell membrane that (in reality) separates them at every point. The membrane doesn't
+        disappear in the homogenized picture &mdash; it becomes a continuous, distributed coupling
+        between the two domains, present everywhere rather than sitting at discrete cell
+        boundaries. That's the entire physical content of the model before a single equation gets
+        written down: two overlapping conducting continua, glued together everywhere by a
+        membrane that can store charge and let current leak across it. The rest of this document
+        is about making that statement precise.
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 860 320" role="img" aria-label="A row of five cardiac cells connected end to end by gap junctions and bathed in extracellular fluid, shown alongside its homogenized bidomain abstraction: an intracellular continuum and an extracellular continuum occupying the same space, coupled everywhere by the membrane.">
+          <defs>
+            <marker id="s1arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <!-- panel A: discrete cells -->
+          <text x="20" y="26" font-family="IBM Plex Mono" font-size="12" fill="var(--muted)">A &mdash; discrete tissue (physical)</text>
+          <rect x="16" y="40" width="380" height="140" rx="6" fill="var(--extra-soft)" stroke="var(--extra-line)"/>
+          <g>
+            <!-- five cells -->
+            <g fill="var(--intra-soft)" stroke="var(--intra)" stroke-width="1.6">
+              <ellipse cx="80" cy="110" rx="46" ry="30"/>
+              <ellipse cx="160" cy="110" rx="46" ry="30"/>
+              <ellipse cx="240" cy="110" rx="46" ry="30"/>
+              <ellipse cx="320" cy="110" rx="46" ry="30"/>
+              <ellipse cx="388" cy="110" rx="30" ry="30"/>
+            </g>
+            <!-- gap junctions -->
+            <g stroke="var(--intra-ink)" stroke-width="5">
+              <line x1="118" y1="110" x2="122" y2="110"/>
+              <line x1="198" y1="110" x2="202" y2="110"/>
+              <line x1="278" y1="110" x2="282" y2="110"/>
+              <line x1="358" y1="110" x2="366" y2="110"/>
+            </g>
+          </g>
+          <text x="80" y="112" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--intra-ink)">cell</text>
+          <text x="200" y="192" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--extra-ink)">extracellular fluid</text>
+          <text x="200" y="60" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--intra-ink)">gap junctions link cell interiors directly</text>
+
+          <!-- arrow between panels -->
+          <line x1="410" y1="110" x2="450" y2="110" stroke="currentColor" stroke-width="1.6" marker-end="url(#s1arrow)"/>
+          <text x="430" y="96" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--muted)">homogenize</text>
+
+          <!-- panel B: two overlapping continua -->
+          <text x="470" y="26" font-family="IBM Plex Mono" font-size="12" fill="var(--muted)">B &mdash; bidomain (homogenized)</text>
+          <rect x="466" y="40" width="378" height="140" rx="6" fill="var(--extra-soft)" stroke="var(--extra-line)"/>
+          <rect x="466" y="40" width="378" height="140" rx="6" fill="var(--intra-soft)" opacity="0.55"/>
+          <text x="655" y="90" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--intra-ink)" font-weight="600">intracellular continuum &mdash; φ_i(x,y)</text>
+          <text x="655" y="150" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--extra-ink)" font-weight="600">extracellular continuum &mdash; φ_e(x,y)</text>
+          <text x="655" y="118" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--vm)">both fill the same volume;</text>
+          <text x="655" y="132" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--vm)">coupled everywhere by the membrane</text>
+
+          <text x="430" y="230" text-anchor="middle" font-family="Source Serif 4" font-size="13" fill="var(--ink-soft)">Every physical point has both an intracellular "address" and an extracellular one &mdash; homogenization keeps both.</text>
+        </svg>
+        <figcaption><strong>Figure 1.</strong> Left: a real strip of cells, each with its own membrane, connected end to end by gap junctions and surrounded by extracellular fluid. Right: the homogenized bidomain picture &mdash; the discrete cells become a smooth intracellular continuum, the discrete extracellular gaps become a smooth extracellular continuum, and both are defined at <em>every</em> point of the tissue simultaneously, coupled by the membrane everywhere rather than at discrete cell walls.</figcaption>
+      </figure>
+    </section>
+    <section class="chapter" id="s2">
+      <div class="chapter-head">
+        <p class="chapter-num">02 &middot; The equivalent circuit model</p>
+        <h2>Building the circuit from a discrete chain of cells</h2>
+        <p class="chapter-goal">You should come out of this section able to draw the ladder-network circuit from scratch and explain, step by step, why shrinking its node spacing to zero produces a spatial derivative.</p>
+      </div>
+
+      <p>
+        Section 1 established the physical picture in words: two continua, coupled everywhere by
+        a membrane. This section makes that picture into something you could build with real
+        resistors, a real capacitor, and a real current source &mdash; and then shows exactly
+        where the calculus in a PDE comes from, by watching what happens as you add more and more
+        of those components packed closer and closer together.
+      </p>
+
+      <h3>One membrane, in detail</h3>
+      <p>
+        Start at a single point along a 1D strand of cardiac tissue &mdash; think of a single
+        fiber, cells strung end to end. At that point there are two electrical nodes: an
+        <span class="i-term">intracellular node</span> at potential \(\phii\), and an
+        <span class="e-term">extracellular node</span> at potential \(\phie\), physically just on
+        the other side of the membrane at that same location. The membrane connecting them is not
+        a plain wire &mdash; it's a two-part circuit element in parallel:
+      </p>
+      <ul>
+        <li>
+          A <strong>capacitor</strong>, \(C_m\), because the membrane is a thin insulating lipid
+          layer separating two conductive fluids &mdash; the textbook definition of a capacitor,
+          two conductors separated by an insulator. Charge builds up on either face of the
+          membrane as \(\Vm = \phii - \phie\) changes, exactly like any capacitor.
+        </li>
+        <li>
+          A <strong>nonlinear current source</strong>, \(I_\text{ion}\), because the membrane is
+          also studded with ion channels &mdash; proteins that let specific ions (Na\(^+\),
+          K\(^+\), Ca\(^{2+}\), &hellip;) cross depending on the current value of \(\Vm\) itself
+          and on each channel's own internal gating state. That voltage-dependence is exactly what
+          makes it a <em>nonlinear</em> source rather than a plain resistor: a resistor's current
+          is proportional to voltage; \(I_\text{ion}(\Vm, \dots)\) is some complicated,
+          state-dependent function of it, given by a separate system of equations (a
+          <strong>cell model</strong> &mdash; e.g. Courtemanche, which this project's openCARP
+          runs use; see <code>opencarp/README.md</code>. Deriving a cell model is its own topic
+          and out of scope here &mdash; for this document, treat \(I_\text{ion}\) as "some
+          function of \(\Vm\) and internal gating variables, supplied by someone else's model.")
+        </li>
+      </ul>
+      <p>
+        These two elements sit in parallel between the same two nodes, so the same voltage
+        \(\Vm\) drives both, and the total current crossing the membrane at that point is their
+        sum: \(C_m \, \partial \Vm/\partial t\) (the capacitive current) plus \(I_\text{ion}(\Vm,
+        \dots)\) (the ionic current). Hold onto that sum &mdash; it reappears, unchanged, on the
+        right-hand side of the actual bidomain PDEs in §4.
+      </p>
+
+      <h3>Chaining nodes together</h3>
+      <p>
+        Now don't stop at one point. Lay down a whole row of these intracellular/extracellular/
+        membrane triplets, spaced a small distance \(\Delta x\) apart along the fiber, and connect
+        <em>each</em> rail to its own neighbors with resistors:
+      </p>
+      <ul>
+        <li>
+          <span class="i-term">Intracellular resistors</span> connect neighboring intracellular
+          nodes &mdash; standing in for cytoplasm resistance plus gap-junction resistance between
+          adjacent sample points.
+        </li>
+        <li>
+          <span class="e-term">Extracellular resistors</span> connect neighboring extracellular
+          nodes &mdash; standing in for interstitial-fluid resistance between the same two points.
+        </li>
+      </ul>
+      <p>
+        The result is a <strong>ladder network</strong>: two resistor rails running in parallel
+        (one intracellular, one extracellular), rung-connected at every node by a membrane branch.
+        This is not a metaphor for the bidomain model &mdash; it <em>is</em> the bidomain model, in
+        its most concrete, buildable form, before anyone takes a continuum limit.
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 920 300" role="img" aria-label="Ladder-network circuit: a row of intracellular nodes connected by resistors along the top rail, a row of extracellular nodes connected by resistors along the bottom rail, and at each node a membrane branch consisting of a capacitor in parallel with a nonlinear ionic current source connecting the two rails.">
+          <defs>
+            <marker id="s2arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <text x="16" y="24" font-family="IBM Plex Mono" font-size="12" fill="var(--intra-ink)" font-weight="600">intracellular rail &mdash; φ_i</text>
+          <text x="16" y="282" font-family="IBM Plex Mono" font-size="12" fill="var(--extra-ink)" font-weight="600">extracellular rail &mdash; φ_e</text>
+
+          <g stroke="var(--intra)" stroke-width="2" fill="none">
+            <polyline points="90,50 108,50 114,38 126,62 138,38 150,62 156,50 172,50"/>
+            <polyline points="230,50 248,50 254,38 266,62 278,38 290,62 296,50 312,50"/>
+            <polyline points="370,50 388,50 394,38 406,62 418,38 430,62 436,50 452,50"/>
+            <polyline points="510,50 528,50 534,38 546,62 558,38 570,62 576,50 592,50"/>
+          </g>
+          <text x="131" y="34" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--intra)">rᵢ</text>
+          <text x="271" y="34" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--intra)">rᵢ</text>
+          <text x="411" y="34" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--intra)">rᵢ</text>
+          <text x="551" y="34" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--intra)">rᵢ</text>
+          <line x1="592" y1="50" x2="650" y2="50" stroke="var(--intra)" stroke-width="2" stroke-dasharray="2 5"/>
+
+          <g stroke="var(--extra)" stroke-width="2" fill="none">
+            <polyline points="90,250 108,250 114,238 126,262 138,238 150,262 156,250 172,250"/>
+            <polyline points="230,250 248,250 254,238 266,262 278,238 290,262 296,250 312,250"/>
+            <polyline points="370,250 388,250 394,238 406,262 418,238 430,262 436,250 452,250"/>
+            <polyline points="510,250 528,250 534,238 546,262 558,238 570,262 576,250 592,250"/>
+          </g>
+          <text x="131" y="278" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--extra)">rₑ</text>
+          <text x="271" y="278" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--extra)">rₑ</text>
+          <text x="411" y="278" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--extra)">rₑ</text>
+          <text x="551" y="278" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--extra)">rₑ</text>
+          <line x1="592" y1="250" x2="650" y2="250" stroke="var(--extra)" stroke-width="2" stroke-dasharray="2 5"/>
+
+          <g stroke="currentColor" stroke-width="1.8" fill="none">
+            <line x1="90" y1="50" x2="90" y2="110"/>
+            <line x1="90" y1="190" x2="90" y2="250"/>
+          </g>
+          <line x1="76" y1="110" x2="104" y2="110" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="76" y1="118" x2="104" y2="118" stroke="currentColor" stroke-width="2.2"/>
+          <text x="112" y="118" font-size="10" fill="var(--ink-soft)">Cₘ</text>
+          <line x1="90" y1="118" x2="90" y2="140" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="90" cy="164" r="16" fill="var(--paper-raised)" stroke="var(--vm)" stroke-width="1.8"/>
+          <line x1="90" y1="172" x2="90" y2="156" stroke="var(--vm)" stroke-width="1.8" marker-end="url(#s2arrow)"/>
+          <text x="112" y="168" font-size="10" fill="var(--vm)">I_ion(Vₘ)</text>
+          <line x1="90" y1="180" x2="90" y2="190" stroke="currentColor" stroke-width="1.8"/>
+          <text x="20" y="164" font-size="10" fill="var(--vm)" text-anchor="start">Vₘ=φᵢ−φₑ</text>
+
+          <g stroke="currentColor" stroke-width="1.8" fill="none">
+            <line x1="230" y1="50" x2="230" y2="110"/>
+            <line x1="230" y1="190" x2="230" y2="250"/>
+          </g>
+          <line x1="216" y1="110" x2="244" y2="110" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="216" y1="118" x2="244" y2="118" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="230" y1="118" x2="230" y2="140" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="230" cy="164" r="16" fill="var(--paper-raised)" stroke="var(--vm)" stroke-width="1.8"/>
+          <line x1="230" y1="172" x2="230" y2="156" stroke="var(--vm)" stroke-width="1.8" marker-end="url(#s2arrow)"/>
+          <line x1="230" y1="180" x2="230" y2="190" stroke="currentColor" stroke-width="1.8"/>
+
+          <g stroke="currentColor" stroke-width="1.8" fill="none">
+            <line x1="370" y1="50" x2="370" y2="110"/>
+            <line x1="370" y1="190" x2="370" y2="250"/>
+          </g>
+          <line x1="356" y1="110" x2="384" y2="110" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="356" y1="118" x2="384" y2="118" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="370" y1="118" x2="370" y2="140" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="370" cy="164" r="16" fill="var(--paper-raised)" stroke="var(--vm)" stroke-width="1.8"/>
+          <line x1="370" y1="172" x2="370" y2="156" stroke="var(--vm)" stroke-width="1.8" marker-end="url(#s2arrow)"/>
+          <line x1="370" y1="180" x2="370" y2="190" stroke="currentColor" stroke-width="1.8"/>
+          <text x="370" y="97" text-anchor="middle" font-size="10.5" fill="var(--ink)" font-weight="600">node n</text>
+
+          <g stroke="currentColor" stroke-width="1.8" fill="none">
+            <line x1="510" y1="50" x2="510" y2="110"/>
+            <line x1="510" y1="190" x2="510" y2="250"/>
+          </g>
+          <line x1="496" y1="110" x2="524" y2="110" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="496" y1="118" x2="524" y2="118" stroke="currentColor" stroke-width="2.2"/>
+          <line x1="510" y1="118" x2="510" y2="140" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="510" cy="164" r="16" fill="var(--paper-raised)" stroke="var(--vm)" stroke-width="1.8"/>
+          <line x1="510" y1="172" x2="510" y2="156" stroke="var(--vm)" stroke-width="1.8" marker-end="url(#s2arrow)"/>
+          <line x1="510" y1="180" x2="510" y2="190" stroke="currentColor" stroke-width="1.8"/>
+
+          <text x="700" y="55" font-family="IBM Plex Mono" font-size="18" fill="var(--muted)">&hellip;</text>
+          <text x="700" y="255" font-family="IBM Plex Mono" font-size="18" fill="var(--muted)">&hellip;</text>
+
+          <g fill="var(--intra)"><circle cx="90" cy="50" r="3.5"/><circle cx="230" cy="50" r="3.5"/><circle cx="370" cy="50" r="3.5"/><circle cx="510" cy="50" r="3.5"/></g>
+          <g fill="var(--extra)"><circle cx="90" cy="250" r="3.5"/><circle cx="230" cy="250" r="3.5"/><circle cx="370" cy="250" r="3.5"/><circle cx="510" cy="250" r="3.5"/></g>
+
+          <line x1="90" y1="286" x2="230" y2="286" stroke="var(--muted)" stroke-width="1"/>
+          <line x1="90" y1="282" x2="90" y2="290" stroke="var(--muted)" stroke-width="1"/>
+          <line x1="230" y1="282" x2="230" y2="290" stroke="var(--muted)" stroke-width="1"/>
+          <text x="160" y="298" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--muted)">Δx</text>
+        </svg>
+        <figcaption><strong>Figure 2.</strong> The ladder-network equivalent circuit for a 1D strand of cardiac tissue. Top rail: intracellular nodes (\(\varphi_i\), spacing \(\Delta x\)) joined by intracellular resistors \(r_i\). Bottom rail: extracellular nodes (\(\varphi_e\)) joined by extracellular resistors \(r_e\). At every node, a membrane branch &mdash; capacitor \(C_m\) in parallel with nonlinear ionic current source \(I_\text{ion}(\Vm)\) &mdash; connects the two rails, where \(\Vm = \varphi_i - \varphi_e\) is the voltage across that branch. This entire diagram repeats indefinitely in both directions.</figcaption>
+      </figure>
+
+      <h3>Current balance at one node</h3>
+      <p>
+        Pick one interior node, call it node \(n\), sitting between neighbors \(n-1\) and
+        \(n+1\). Kirchhoff's current law says: whatever current flows <em>into</em> node \(n\)'s
+        intracellular terminal from its two resistor neighbors must flow <em>out</em> somewhere
+        &mdash; and the only place it can go is down through the membrane branch into the
+        extracellular rail. Writing \(r_i\) for the intracellular resistor value and using Ohm's
+        law for each resistor:
+      </p>
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(2.1)</span>
+        \[
+        \underbrace{\frac{\phii[n-1] - \phii[n]}{r_i} + \frac{\phii[n+1] - \phii[n]}{r_i}}_{\text{net current flowing into node } n \text{ along the intracellular rail}}
+        \;=\;
+        \underbrace{C_m \frac{d\Vm[n]}{dt} + I_\text{ion}(\Vm[n])}_{\text{current leaving through the membrane at node } n} \cdot \big(\beta \, \Delta x\big)
+        \]
+      </div>
+      <p>
+        The right-hand side needs one more piece of bookkeeping: \(C_m \dot\Vm + I_\text{ion}\) is
+        a current <em>density</em> (current per unit membrane area), not a raw current, so it has
+        to be multiplied by however much membrane area actually sits at node \(n\). In this 1D
+        cable, that's \(\beta \, \Delta x\), where \(\beta\) is the membrane's <strong>surface-to-
+        volume ratio</strong> &mdash; membrane area per unit length of fiber (in the full 3D case,
+        membrane area per unit tissue volume). \(\beta\) is large for cardiac tissue (thin cells
+        pack a lot of membrane area into a small volume), and it's exactly the same \(\beta\) that
+        appears in the bidomain PDEs in §4 &mdash; it's the geometric factor that converts a
+        per-area membrane quantity into a per-volume (or here, per-length) one, which is what a
+        continuum equation needs.
+      </p>
+
+      <h3>Taking the continuum limit</h3>
+      <p>
+        Now shrink \(\Delta x\). As the nodes get closer together, index \(n\) stops being a
+        useful label and position \(x\) takes over: \(\phii[n] \to \phii(x)\),
+        \(\phii[n\pm 1] \to \phii(x \pm \Delta x)\). It also helps to stop thinking of \(r_i\) as
+        "the resistance of this one particular resistor" and instead define \(R_i\) = resistance
+        <em>per unit length</em> of intracellular medium, so that the resistor spanning the gap
+        \(\Delta x\) has resistance \(r_i = R_i \, \Delta x\) &mdash; twice the spacing, twice the
+        resistance, which is exactly how a uniform resistive medium behaves. Substituting into
+        (2.1) and dividing through by \(\Delta x\):
+      </p>
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(2.2)</span>
+        \[
+        \frac{1}{R_i}\cdot\frac{\phii(x-\Delta x) - 2\phii(x) + \phii(x+\Delta x)}{\Delta x^2}
+        \;=\;
+        \beta\left(C_m \frac{\partial \Vm}{\partial t} + I_\text{ion}(\Vm)\right)
+        \]
+      </div>
+      <p>
+        Look closely at the fraction on the left &mdash; it should look familiar. It's exactly the
+        standard centered finite-difference formula for a second derivative:
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(2.3)</span>
+        \[
+        \frac{f(x-\Delta x) - 2f(x) + f(x+\Delta x)}{\Delta x^2} \;\xrightarrow[\Delta x \to 0]{}\; f''(x)
+        \]
+      </div>
+      <p>
+        which you can confirm for yourself with a two-line Taylor expansion (this is exactly the
+        formula worked pseudocode uses in §6, and it's the subject of Practice Problem 3 in §8).
+        Taking \(\Delta x \to 0\) in (2.2), the discrete sum-of-neighbors term becomes a genuine
+        second spatial derivative, and the whole equation becomes:
+      </p>
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(2.4)</span>
+        \[
+        \frac{1}{R_i}\frac{\partial^2 \phii}{\partial x^2} \;=\; \beta\left(C_m \frac{\partial \Vm}{\partial t} + I_\text{ion}(\Vm)\right)
+        \]
+      </div>
+      <p>
+        Define \(\sigma_i \equiv 1/R_i\) (conductance per unit length &mdash; the reciprocal of
+        resistance per unit length) and this is precisely the 1D version of the intracellular
+        bidomain equation you'll see written in full, tensor form in §4:
+        \(\sigma_i \, \partial^2 \phii/\partial x^2 = \beta(C_m \partial \Vm/\partial t +
+        I_\text{ion})\), i.e. \(\nabla\cdot(\sigma_i \nabla \phii) = \beta(\cdots)\) once you allow
+        more than one spatial dimension. <strong>This is the crux move of the whole document:</strong>
+        a spatial second derivative in a PDE is nothing more exotic than "the continuum limit of
+        summing up current flowing in from a resistor network's discrete neighbors." Nothing about
+        that derivation required anything you didn't already have in Figure 2 &mdash; it's Ohm's
+        law, Kirchhoff's current law, and one Taylor expansion.
+      </p>
+
+      <div class="callout">
+        <span class="callout-label">Honest caveat &mdash; units</span>
+        <p>
+          The 1D lumped-resistor argument above is built to make the discrete-to-derivative step
+          as transparent as possible, and it does that faithfully &mdash; but it quietly sweeps
+          cross-sectional area into the definition of \(R_i\), so \(\sigma_i = 1/R_i\) here has
+          units of siemens&middot;meter (conductance <em>per unit length</em>), not the
+          siemens/meter of a true material conductivity. In the full 3D formulation used from §4
+          onward, \(\sigma_i\) is a genuine material property (S/m), the current is a proper
+          current density (A/m²), and the geometric bookkeeping this section did by hand (spacing,
+          cross-section) is instead carried automatically by the divergence operator acting on a
+          real 3D vector field. The physical story &mdash; discrete neighbor differences becoming
+          a second derivative in the limit &mdash; is identical either way; only the unit
+          bookkeeping differs.
+        </p>
+      </div>
+
+      <p>
+        One more detail worth being explicit about, because it directly explains something in §4:
+        redo this entire derivation for the <em>extracellular</em> rail at the same node, and
+        you get the same result with two changes. First, obviously, \(\phii \to \phie\) and
+        \(\sigma_i \to \sigma_e\). Second &mdash; and this is the important one &mdash; the sign of
+        the coupling flips. Current that flows <em>out</em> of the intracellular rail through the
+        membrane flows <em>into</em> the extracellular rail through that same membrane (charge
+        doesn't vanish at the membrane; it crosses it). That's why the extracellular equation in
+        §4 carries an overall minus sign relative to the intracellular one &mdash; not an arbitrary
+        convention, but the direct bookkeeping consequence of "whatever current the membrane pulls
+        from one rail, it deposits in the other."
+      </p>
+    </section>
+    <section class="chapter" id="s3">
+      <div class="chapter-head">
+        <p class="chapter-num">03 &middot; Divergence and current conservation</p>
+        <h2>What \(\nabla\cdot(\sigma\nabla\varphi)\) actually says</h2>
+        <p class="chapter-goal">You should come out of this section able to read \(\nabla\cdot(\sigma\nabla\varphi) = \text{source}\) as a sentence about local current balance, not a string of symbols to manipulate.</p>
+      </div>
+
+      <p>
+        §2 built the derivative you need out of a discrete resistor chain, in 1D, by brute force
+        &mdash; Kirchhoff's law at every node, then a limit. That's the right way to build
+        intuition for <em>where a derivative comes from</em>, but the actual bidomain equations
+        live in two or three spatial dimensions, and re-deriving them node-by-node in 3D would be
+        unreadable. This section gives you the tool that does the same bookkeeping in any number
+        of dimensions at once &mdash; <strong>divergence</strong> &mdash; and, crucially, insists
+        on understanding what it means physically before using it as notation.
+      </p>
+
+      <h3>Divergence, physically, before any symbols</h3>
+      <p>
+        Take any vector field that represents a flow of something &mdash; current density
+        \(\mathbf{J}\) is the one that matters here, but the same idea works for water flow, heat
+        flow, anything that moves through space. Now imagine a tiny closed box sitting somewhere
+        in that field &mdash; small enough that the field barely changes across it, but with a
+        real, nonzero volume. Current flows in through some faces of the box and out through
+        others. Add it all up: total current flowing <em>out</em> across every face, minus total
+        current flowing <em>in</em>. Divide that net outflow by the box's volume. Shrink the box
+        toward a point. Whatever number that ratio approaches <strong>is the divergence of
+        \(\mathbf{J}\) at that point</strong> &mdash; literally "net outflow per unit volume, in
+        the limit of an infinitesimally small volume."
+      </p>
+      <p>
+        Two cases are worth holding in your head side by side, because the contrast is the whole
+        idea:
+      </p>
+      <ul>
+        <li>
+          If exactly as much current flows into the box as flows out &mdash; current is just
+          <em>passing through</em>, like water through a section of pipe with no leaks &mdash;
+          the net outflow is zero, and so is the divergence at that point. Nothing is being
+          created or destroyed there.
+        </li>
+        <li>
+          If <em>more</em> current leaves the box than enters, something inside the box must be
+          <em>generating</em> current from somewhere else &mdash; a source. If <em>less</em>
+          leaves than enters, something inside is <em>removing</em> current, diverting it
+          somewhere else &mdash; a sink. Either way, a nonzero divergence at a point means "this
+          point is a source or sink of the flow," not just a conduit for it.
+        </li>
+      </ul>
+
+      <figure>
+        <svg viewBox="0 0 760 260" role="img" aria-label="Two small control volumes compared: on the left, equal current flux enters and leaves every face, so net outflow and divergence are zero -- current is merely passing through. On the right, more current leaves the box than enters, because current is being added inside -- a source, and a nonzero divergence at that point.">
+          <defs>
+            <marker id="s3arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <!-- Panel A: balanced -->
+          <text x="180" y="26" text-anchor="middle" font-family="IBM Plex Mono" font-size="12.5" fill="var(--muted)">divergence = 0 (pass-through)</text>
+          <rect x="110" y="60" width="140" height="140" fill="var(--paper-sunken)" stroke="var(--line-strong)" stroke-width="1.4"/>
+          <line x1="60" y1="130" x2="105" y2="130" stroke="currentColor" stroke-width="2.2" marker-end="url(#s3arrow)"/>
+          <line x1="255" y1="130" x2="300" y2="130" stroke="currentColor" stroke-width="2.2" marker-end="url(#s3arrow)"/>
+          <line x1="180" y1="10" x2="180" y2="55" stroke="currentColor" stroke-width="2.2" marker-end="url(#s3arrow)"/>
+          <line x1="180" y1="205" x2="180" y2="250" stroke="currentColor" stroke-width="2.2" marker-end="url(#s3arrow)"/>
+          <text x="180" y="132" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--ink-soft)">in = out</text>
+          <text x="180" y="150" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--ink-soft)">on every face</text>
+
+          <!-- Panel B: source -->
+          <text x="580" y="26" text-anchor="middle" font-family="IBM Plex Mono" font-size="12.5" fill="var(--muted)">divergence &gt; 0 (source)</text>
+          <rect x="510" y="60" width="140" height="140" fill="var(--intra-soft)" stroke="var(--intra-line)" stroke-width="1.4"/>
+          <line x1="470" y1="130" x2="505" y2="130" stroke="var(--intra)" stroke-width="1.6" marker-end="url(#s3arrow)"/>
+          <line x1="655" y1="130" x2="710" y2="130" stroke="var(--intra)" stroke-width="3" marker-end="url(#s3arrow)"/>
+          <line x1="580" y1="24" x2="580" y2="55" stroke="var(--intra)" stroke-width="1.6" marker-end="url(#s3arrow)"/>
+          <line x1="580" y1="205" x2="580" y2="236" stroke="var(--intra)" stroke-width="2.6" marker-end="url(#s3arrow)"/>
+          <circle cx="580" cy="130" r="7" fill="var(--vm)"/>
+          <text x="580" y="150" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--vm)">current injected here</text>
+          <text x="580" y="220" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--intra)">thicker arrows = more current leaving</text>
+        </svg>
+        <figcaption><strong>Figure 3.</strong> Divergence at a point is net outflow per unit volume as the volume shrinks to that point. Left: current merely passes through the box &mdash; equal flux on every face, zero divergence. Right: a source inside the box (e.g. current crossing in from the membrane) makes more current leave than enter &mdash; positive divergence.</figcaption>
+      </figure>
+
+      <h3>From "net outflow" to \(\nabla\cdot\mathbf{J}\)</h3>
+      <p>
+        That whole paragraph above <em>is</em> the definition of divergence &mdash; the standard
+        symbolic formula is just a compact way to write "sum the flux through every face, divide
+        by volume, shrink to a point":
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(3.1)</span>
+        \[
+        \nabla \cdot \mathbf{J} \;\equiv\; \lim_{V \to 0} \frac{1}{V} \oint_{\partial V} \mathbf{J}\cdot \hat{\mathbf{n}} \; dA
+        \]
+      </div>
+      <p>
+        \(\partial V\) is the boundary surface of the little volume \(V\), \(\hat{\mathbf n}\) is
+        the outward-pointing direction at each patch of that surface, and \(\mathbf{J}\cdot
+        \hat{\mathbf n}\) picks out how much of the flow at that patch is actually crossing
+        outward through it (flow running parallel to the surface doesn't count &mdash; nothing is
+        leaving). In Cartesian coordinates this reduces to the familiar sum of partial derivatives,
+        \(\nabla\cdot\mathbf{J} = \partial J_x/\partial x + \partial J_y/\partial y +
+        \partial J_z/\partial z\), but that formula is a <em>consequence</em> of the physical
+        definition (3.1), not the definition itself &mdash; worth remembering the physical version
+        first, because it's the version that tells you <em>why</em> the equations below have the
+        shape they do.
+      </p>
+
+      <h3>Ohm's law gives you the current; conservation gives you the equation</h3>
+      <p>
+        Current density in a conducting medium obeys a continuum version of Ohm's law: current
+        flows from high potential to low potential, at a rate set by the conductivity,
+        \(\mathbf{J} = -\sigma \nabla\varphi\). (The minus sign matters and is worth pausing on:
+        \(\nabla\varphi\) points in the direction potential <em>increases</em> fastest; current
+        physically flows the opposite way, from high to low, which is exactly what the minus sign
+        encodes.) Combine that with the conservation argument from §2 &mdash; whatever current
+        leaves the intracellular domain locally must be exactly the current crossing the membrane
+        there, nowhere else for it to go &mdash; and you get, at every point:
+      </p>
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(3.2)</span>
+        \[
+        \nabla\cdot \mathbf{J}_i \;=\; -\,\beta\left(C_m\frac{\partial \Vm}{\partial t} + I_\text{ion}\right)
+        \]
+      </div>
+      <p>
+        Read the right-hand side first, since it's the physically meaningful part: it's the same
+        current-per-unit-volume leaving the intracellular domain through the membrane that §2
+        derived node by node, now written as a source/sink density rather than a per-node
+        quantity &mdash; negative because current is <em>leaving</em> the intracellular domain
+        (a sink, in the language of the previous figure). Substitute Ohm's law,
+        \(\mathbf J_i = -\sigma_i\nabla\phii\), into the left-hand side and the two minus signs
+        cancel:
+      </p>
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(3.3)</span>
+        \[
+        \nabla\cdot(\sigma_i \nabla \phii) \;=\; \beta\left(C_m\frac{\partial \Vm}{\partial t} + I_\text{ion}\right)
+        \]
+      </div>
+      <p>
+        This is exactly the 1D result (2.4) generalized to any number of dimensions, and it's
+        exactly the first bidomain equation §4 states properly. Nothing new happened here beyond
+        swapping the 1D "sum over two neighbors, take a limit" argument of §2 for the
+        dimension-agnostic "flux through a shrinking box" argument of this section &mdash; same
+        physics, more general tool. §4 walks through why the extracellular equation carries the
+        opposite sign (current crossing the membrane is a sink for one domain and a source for the
+        other, exactly as §2's closing paragraph anticipated), and introduces the one remaining
+        piece &mdash; \(\sigma\) as a <em>tensor</em>, not a number &mdash; that this section
+        deliberately deferred.
+      </p>
+
+      <div class="callout">
+        <span class="callout-label">The one sentence to keep</span>
+        <p>
+          \(\nabla\cdot(\sigma\nabla\varphi) = \text{source}\) says: <em>the net current
+          conducted away from this point, through the medium of conductivity \(\sigma\), equals
+          whatever current is being locally injected or removed here.</em> Every instance of this
+          equation form in this document, bidomain or monodomain, is that one sentence, restated
+          for whichever domain and source term apply.
+        </p>
+      </div>
+    </section>
+    <section class="chapter" id="s4">
+      <div class="chapter-head">
+        <p class="chapter-num">04 &middot; The bidomain equations</p>
+        <h2>The equations, term by term</h2>
+        <p class="chapter-goal">You should come out of this section able to point at every symbol in the bidomain PDEs and say, in one sentence, what physical thing it represents.</p>
+      </div>
+
+      <p>
+        Everything is now in place. Here is the bidomain model in the form it's usually written
+        in the EP literature (this is the field's actual standard notation, not something
+        invented for this document):
+      </p>
+
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(4.1) intracellular</span>
+        \[
+        \nabla\cdot(\sigi \nabla \phii) \;=\; \beta\left(C_m \frac{\partial \Vm}{\partial t} + I_\text{ion}(\Vm, \mathbf{w})\right)
+        \]
+      </div>
+      <div class="eq-plate e-flavor">
+        <span class="eq-tag">(4.2) extracellular</span>
+        \[
+        -\,\nabla\cdot(\sige \nabla \phie) \;=\; \beta\left(C_m \frac{\partial \Vm}{\partial t} + I_\text{ion}(\Vm, \mathbf{w})\right)
+        \]
+      </div>
+      <div class="eq-plate">
+        <span class="eq-tag">(4.3) definition</span>
+        \[
+        \Vm \;\equiv\; \phii - \phie
+        \]
+      </div>
+
+      <p>
+        Read (4.1) and (4.2) as one system, not two independent equations &mdash; they share the
+        same right-hand side, and (4.3) is what actually couples them: \(\phii\) and \(\phie\)
+        aren't free to move independently, because their difference is pinned to \(\Vm\), which is
+        itself driven by both equations at once. This is a genuinely coupled system: you cannot
+        solve for \(\phii\) without knowing \(\phie\) (it's needed to get \(\Vm\) for the
+        right-hand side) and vice versa.
+      </p>
+
+      <h3>Every symbol, explained</h3>
+      <dl class="term-key">
+        <dt>\(\phii, \phie\)</dt>
+        <dd>Intracellular and extracellular electric potential (volts), the two unknowns the system solves for at every point and every instant.</dd>
+        <dt>\(\Vm\)</dt>
+        <dd>Transmembrane voltage, \(\phii - \phie\) by definition &mdash; not an independent unknown, just a name for that particular difference. This is the quantity a cell model's gating equations are written in terms of, and the quantity §2's membrane branch sits across.</dd>
+        <dt>\(\sigi, \sige\)</dt>
+        <dd>Intracellular and extracellular conductivity <strong>tensors</strong> (not scalars &mdash; see below), units siemens/meter, describing how easily current is conducted through each domain in each direction.</dd>
+        <dt>\(\beta\)</dt>
+        <dd>Membrane surface-to-volume ratio (m<sup>&minus;1</sup>) &mdash; membrane area per unit tissue volume, exactly the geometric conversion factor §2 introduced by hand for the 1D cable case, now doing the same job in full 3D.</dd>
+        <dt>\(C_m\)</dt>
+        <dd>Membrane capacitance per unit area (F/m²) &mdash; a material property of the lipid bilayer, roughly constant across cell types.</dd>
+        <dt>\(I_\text{ion}(\Vm, \mathbf{w})\)</dt>
+        <dd>Ionic current per unit membrane area (A/m²), a nonlinear function of \(\Vm\) and a vector \(\mathbf w\) of internal gating variables (channel open/closed states, ion concentrations, &hellip;) that evolve according to their own separate ODEs &mdash; together, \(\Vm\) and \(\mathbf w\)'s equations are "the cell model." This project's openCARP simulations use the Courtemanche-Ramirez-Nattel human-atrial cell model; see <code>opencarp/README.md</code> for how it's invoked. Deriving or even fully specifying a cell model is a substantial topic on its own and deliberately out of scope here &mdash; treat \(I_\text{ion}\) as a black box supplied by that separate layer.</dd>
+      </dl>
+
+      <h3>Why \(\sigma_i\) and \(\sigma_e\) have to be tensors</h3>
+      <p>
+        A scalar conductivity says "current flows in the same direction as the driving field,
+        just scaled by a number" &mdash; \(\mathbf J = -\sigma\nabla\varphi\) with plain-number
+        \(\sigma\) means \(\mathbf J\) always points exactly opposite \(\nabla\varphi\). That's a
+        fine model for an isotropic material &mdash; salt water, say, where conducting properties
+        don't depend on direction. Cardiac tissue is not isotropic. Cardiomyocytes are elongated
+        and packed in aligned sheets, and gap junctions are far denser end-to-end (along the fiber
+        axis) than side-to-side &mdash; so current injected at a point spreads out
+        <em>preferentially along the local fiber direction</em>, tracing an elongated ellipse
+        rather than a circle. A single number can't encode "conducts well in this direction, less
+        well in that one" &mdash; you need a conductivity that depends on direction, and the
+        object that does that, while still obeying the same linear physics (double the field,
+        double the current), is a <strong>tensor</strong>: at each point, a 3&times;3 (or, in a 2D
+        sheet model, 2&times;2) matrix that acts on the gradient vector rather than just scaling
+        it.
+      </p>
+      <p>
+        Concretely, in the local coordinate frame aligned with the fiber direction, the
+        conductivity tensor is diagonal &mdash; a different number along the fiber than across it:
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(4.4)</span>
+        \[
+        \sigi \;=\; \begin{pmatrix}\sigma_{i,l} & 0 \\ 0 & \sigma_{i,t}\end{pmatrix}, \qquad
+        \sigma_{i,l} \gg \sigma_{i,t}
+        \]
+      </div>
+      <p>
+        (\(l\) = longitudinal, along the fiber; \(t\) = transverse, across it; a full 3D tissue
+        model would have two transverse directions, typically taken equal to each other &mdash;
+        "transversely isotropic.") Multiplying a gradient vector by this matrix, rather than by a
+        single number, is what lets \(\mathbf J\) point in a <em>different direction</em> than
+        \(\nabla\varphi\) whenever the field isn't aligned with a fiber &mdash; current gets
+        "steered" toward the easy (longitudinal) direction. That steering effect, worked through
+        concretely, is exactly what produces the elongated elliptical wavefronts you'll see in
+        §7b, and it's Practice Problem 2 in §8.
+      </p>
+      <p>
+        One more point that matters a great deal and is easy to miss: <strong>\(\sigi\) and
+        \(\sige\) don't just each need to be tensors &mdash; their anisotropy doesn't have to
+        match.</strong> Typical literature values (illustrative, not the specific numbers behind
+        any particular run in this project) put the intracellular longitudinal-to-transverse ratio
+        around 10:1, while the extracellular ratio is much closer to 2:1 &mdash; the extracellular
+        space is far less anisotropic than the intracellular one, physically because interstitial
+        fluid doesn't have anything like the gap-junction structure that makes the intracellular
+        space so directionally biased. This mismatch &mdash; "unequal anisotropy ratios" in the
+        literature's phrase &mdash; is precisely the physical fact that §5's simplifying
+        assumption has to set aside, and it's why monodomain is a genuine approximation rather than
+        an exact rewrite of bidomain.
+      </p>
+
+      <div class="callout">
+        <span class="callout-label">Boundary conditions, briefly</span>
+        <p>
+          (4.1)&ndash;(4.2) need boundary conditions to be a well-posed problem, and one of them is
+          physically intuitive given everything above: at the outer edge of the tissue, no
+          intracellular current can flow <em>out</em> of the tissue (there's no cell interior
+          beyond the boundary for it to flow into), so \(\mathbf n\cdot(\sigi\nabla\phii) = 0\)
+          there &mdash; a no-flux condition on the intracellular domain at the tissue boundary. The
+          extracellular domain typically does <em>not</em> get the same treatment, since real
+          tissue sits in a conductive bath (blood, or a perfusion chamber in a wet-lab setup) that
+          extracellular current can flow into. This document won't dwell further on boundary
+          conditions &mdash; they matter for a working solver but aren't where the conceptual
+          weight of the model lives &mdash; but it's worth knowing this asymmetry exists and isn't
+          an oversight.
+        </p>
+      </div>
+    </section>
+    <section class="chapter" id="s5">
+      <div class="chapter-head">
+        <p class="chapter-num">05 &middot; Deriving monodomain</p>
+        <h2>Collapsing two equations into one</h2>
+        <p class="chapter-goal">You should come out of this section able to derive the monodomain equation from bidomain algebraically, from the proportional-conductivity assumption alone, and state precisely what that assumption throws away.</p>
+      </div>
+
+      <p>
+        The bidomain system (4.1)&ndash;(4.2) is expensive to solve: two coupled PDEs, two unknown
+        fields, every timestep. <strong>Monodomain</strong> is the standard simplification, and
+        it rests on exactly one assumption, applied to the two conductivity tensors from §4:
+      </p>
+
+      <div class="eq-plate">
+        <span class="eq-tag">(5.1) equal anisotropy ratio assumption</span>
+        \[
+        \sige \;=\; k\,\sigi \qquad \text{for some scalar constant } k
+        \]
+      </div>
+
+      <p>
+        In words: the extracellular tensor is just the intracellular tensor scaled by a single
+        number &mdash; same relative anisotropy (same ratio of longitudinal to transverse
+        conductivity), just uniformly stronger or weaker everywhere. §4 already flagged that this
+        is <em>not</em> quite true of real cardiac tissue (\(\approx\)10:1 intracellular
+        anisotropy vs. \(\approx\)2:1 extracellular, in typical literature values) &mdash; so (5.1)
+        is a genuine approximation, not a fact. Everything below is "here's what you get to assume
+        away if you're willing to accept that approximation."
+      </p>
+
+      <h3>The algebra</h3>
+      <p>
+        Start from the two bidomain equations, both stated with the shared right-hand side
+        \(S \equiv \beta(C_m\,\partial \Vm/\partial t + I_\text{ion})\) made explicit:
+      </p>
+      <div class="eq-plate i-flavor">
+        <span class="eq-tag">(5.2)</span>
+        \[
+        \nabla\cdot(\sigi \nabla \phii) = S
+        \]
+      </div>
+      <div class="eq-plate e-flavor">
+        <span class="eq-tag">(5.3)</span>
+        \[
+        \nabla\cdot(\sige \nabla \phie) = -S
+        \]
+      </div>
+      <p>
+        Substitute (5.1) into (5.3) &mdash; replace \(\sige\) with \(k\sigi\) &mdash; and divide
+        through by \(k\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(5.4)</span>
+        \[
+        \nabla\cdot(\sigi \nabla \phie) \;=\; -\,\frac{S}{k}
+        \]
+      </div>
+      <p>
+        Now both (5.2) and (5.4) have the <em>same</em> tensor, \(\sigi\), acting on a gradient
+        &mdash; that's the whole point of assuming (5.1); it makes this next step possible.
+        Because \(\nabla\cdot(\sigi\nabla(\cdot))\) is linear, subtracting (5.4) from (5.2) lets
+        you combine the two potentials directly into their difference, \(\Vm = \phii - \phie\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(5.5)</span>
+        \[
+        \nabla\cdot(\sigi \nabla \phii) - \nabla\cdot(\sigi \nabla \phie)
+        \;=\; \nabla\cdot\big(\sigi \nabla(\phii - \phie)\big)
+        \;=\; \nabla\cdot(\sigi \nabla \Vm)
+        \;=\; S - \left(-\frac{S}{k}\right) \;=\; S\left(1 + \frac{1}{k}\right)
+        \]
+      </div>
+      <p>
+        Solve (5.5) for \(S\), then substitute back \(S = \beta(C_m\partial \Vm/\partial t +
+        I_\text{ion})\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(5.6) &mdash; the monodomain equation</span>
+        \[
+        \nabla\cdot(\sigma_m \nabla \Vm) \;=\; \beta\left(C_m\frac{\partial \Vm}{\partial t} + I_\text{ion}(\Vm,\mathbf w)\right),
+        \qquad
+        \sigma_m \equiv \frac{k}{k+1}\,\sigi \;=\; \frac{\sigi\,\sige}{\sigi + \sige}
+        \]
+      </div>
+      <p>
+        One equation, one unknown field (\(\Vm\)), no \(\phii\) or \(\phie\) appearing anywhere.
+        \(\sigma_m\) &mdash; the <strong>monodomain (or "bulk") conductivity tensor"</strong> &mdash;
+        is a weighted combination of the two original tensors that has the algebraic form of a
+        harmonic mean; since \(\sigi\) and \(\sige\) are proportional under assumption (5.1) they
+        share the same eigenvectors (the fiber directions), so \(\sigma_m\) is diagonal in that
+        same frame too, with each diagonal entry the harmonic mean of the corresponding
+        intracellular/extracellular values &mdash; still anisotropic, still direction-dependent,
+        just one tensor instead of two.
+      </p>
+
+      <h3>What gets thrown away</h3>
+      <p>
+        Here's the part worth being precise about, because it's easy to state too strongly or too
+        weakly. The monodomain equation (5.6) is <em>self-contained</em> in \(\Vm\): to advance it
+        forward in time &mdash; which is all a simulation actually needs to do &mdash; you never
+        need to know \(\phii\) or \(\phie\) individually, at any point in the computation. That's
+        the entire value of the reduction: half the unknowns, half the linear solves, every
+        timestep.
+      </p>
+      <p>
+        It does <em>not</em> follow that \(\phii\) and \(\phie\) are gone forever, unrecoverable in
+        principle. Given a completed monodomain run &mdash; \(\Vm(x,t)\) at every point and time
+        &mdash; you can, as a genuinely separate calculation, go back to the original extracellular
+        equation (5.3) and solve it as a standalone elliptic (Poisson-like) problem, using the
+        now-known \(\Vm\) to reconstruct its right-hand side. That reconstruction is a real,
+        standard technique (a "forward problem" or lead-field calculation), but notice what it
+        costs: it needs \(\sige\) back (not folded into \(\sigma_m\) &mdash; the individual tensor,
+        which the monodomain solve itself never used), and it needs the full domain geometry,
+        including anything electrically connected to the tissue (a surrounding blood pool or bath),
+        because that geometry sets the boundary conditions the elliptic solve needs. None of that
+        is "free" or already sitting inside the monodomain output &mdash; it's a second computation
+        with its own separate inputs.
+      </p>
+
+      <div class="callout">
+        <span class="callout-label">Closing the loop on Phase 2</span>
+        <p>
+          This is exactly the fork <code>docs/PHASE2_METHODOLOGY.md</code> §7 describes as the two
+          "genuine" options for getting a real extracellular potential out of a simulation: run
+          full bidomain (\(\phie\) is a direct output of the solve, no extra step), or run the
+          cheaper monodomain and then perform the forward-problem reconstruction above as a
+          separate step on top of its \(\Vm\) output. This project's Phase 2 openCARP run used
+          monodomain (its <code>parameters.par</code> sets <code>bidomain = 0</code>) and did
+          <strong>neither</strong> of those two genuine options &mdash; it approximated the
+          unipolar electrogram directly as local \(\Vm(t)\), skipping the forward-problem
+          reconstruction entirely rather than paying its cost. That's a real, documented
+          limitation, and now you can see exactly what it's a shortcut <em>past</em>: not just
+          "less accurate physics" in the abstract, but specifically skipping the elliptic
+          reconstruction that (5.6)'s derivation shows is required &mdash; and only required
+          &mdash; because monodomain's own solve never touches \(\phie\) at all.
+        </p>
+      </div>
+    </section>
+    <section class="chapter" id="s6">
+      <div class="chapter-head">
+        <p class="chapter-num">06 &middot; Discretization</p>
+        <h2>From continuous PDE to code that runs</h2>
+        <p class="chapter-goal">You should come out of this section able to read (or write) pseudocode for a basic explicit monodomain solver, and explain why FEM is the right tool for openCARP's unstructured meshes.</p>
+      </div>
+
+      <p>
+        Every equation so far has been continuous &mdash; \(\Vm\) is a function defined at every
+        one of infinitely many points in space and time. A computer can't store that; it can only
+        store finitely many numbers. <strong>Discretization</strong> is the general name for
+        turning a continuous PDE into a finite system a computer can actually solve. There are two
+        dominant approaches, and it's worth understanding both conceptually before committing to
+        one.
+      </p>
+
+      <div class="fig-pair">
+        <div class="callout" style="border-left-color: var(--intra);">
+          <span class="callout-label" style="color: var(--intra-ink);">Finite difference (FD)</span>
+          <p>
+            Lay down a regular grid of points. Replace every derivative in the PDE with an
+            algebraic difference quotient between a point and its immediate neighbors &mdash;
+            exactly the formula (2.3) already derived, now used in reverse: instead of taking
+            \(\Delta x \to 0\) to <em>get</em> a derivative, stop at a small but finite
+            \(\Delta x\) to <em>approximate</em> one. Simple to implement, cheap per point, but
+            tied to a regular grid &mdash; awkward for the curved, irregular boundary of a real
+            heart chamber.
+          </p>
+        </div>
+        <div class="callout" style="border-left-color: var(--extra);">
+          <span class="callout-label" style="color: var(--extra-ink);">Finite element (FEM)</span>
+          <p>
+            Cover the domain with a mesh of small, possibly irregular elements (triangles in 2D,
+            tetrahedra in 3D) that can conform tightly to any geometry. Instead of approximating
+            derivatives pointwise, multiply the PDE by a test function and integrate over the
+            domain (the "weak form," below) &mdash; more setup machinery, but the natural choice
+            when the domain's shape is complicated, which real cardiac anatomy always is.
+          </p>
+        </div>
+      </div>
+
+      <p>
+        This document works FD all the way to runnable pseudocode, because it's the more direct
+        continuation of everything §2&ndash;3 already built. FEM gets a conceptual pass at the end
+        of this section &mdash; enough to know what "weak formulation" means and why it's the tool
+        real simulators reach for &mdash; without a full derivation.
+      </p>
+
+      <h3>The reaction-diffusion form</h3>
+      <p>
+        Before discretizing, it helps to rewrite the monodomain equation (5.6) in the form most
+        solver code actually uses. Divide through by \(\beta C_m\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(6.1)</span>
+        \[
+        \frac{\partial \Vm}{\partial t} \;=\; \underbrace{\frac{1}{\beta C_m}\nabla\cdot(\sigma_m\nabla \Vm)}_{\text{diffusion}} \;-\; \underbrace{\frac{I_\text{ion}(\Vm,\mathbf w)}{C_m}}_{\text{reaction}}
+        \]
+      </div>
+      <p>
+        This is a <strong>reaction-diffusion equation</strong>: a diffusion term that spreads
+        \(\Vm\) out smoothly through the tissue (structurally identical to the heat equation, with
+        \(\sigma_m/\beta C_m\) playing the role of a diffusion coefficient), plus a reaction term
+        &mdash; the nonlinear membrane kinetics &mdash; that happens locally at each point,
+        independent of its neighbors. Everything else in this section discretizes exactly this
+        form. For the isotropic scalar special case (drop the tensor, use a single number
+        \(D \equiv \sigma_m/\beta C_m\)) this becomes \(\partial \Vm/\partial t = D\nabla^2\Vm -
+        I_\text{ion}/C_m\), which is what the pseudocode below implements.
+      </p>
+
+      <h3>Discretizing space: the 5-point Laplacian stencil</h3>
+      <p>
+        Lay a regular grid over a 2D tissue patch, spacing \(h\) in both directions, and write
+        \(\Vm_{i,j}\) for the value at grid point \((i,j)\). Apply formula (2.3) once along each
+        axis and add the results &mdash; that's what \(\nabla^2 = \partial^2/\partial x^2 +
+        \partial^2/\partial y^2\) means, one second derivative per dimension:
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(6.2)</span>
+        \[
+        \nabla^2 \Vm \Big|_{i,j} \;\approx\; \frac{\Vm_{i+1,j} + \Vm_{i-1,j} + \Vm_{i,j+1} + \Vm_{i,j-1} - 4\Vm_{i,j}}{h^2}
+        \]
+      </div>
+      <p>
+        This is the famous "5-point stencil": each point's new contribution depends only on itself
+        and its four immediate neighbors, weighted \((1, 1, 1, 1, -4)\).
+      </p>
+
+      <h3>Discretizing time: forward Euler</h3>
+      <p>
+        Advance in fixed time steps \(\Delta t\). Forward Euler just says: the value at the next
+        step equals the value now, plus the rate of change now, times the step size &mdash; the
+        most direct possible reading of a derivative as "change over time":
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(6.3)</span>
+        \[
+        \Vm_{i,j}^{\,n+1} \;=\; \Vm_{i,j}^{\,n} \;+\; \Delta t\left(D\,\nabla^2\Vm\big|_{i,j}^{\,n} \;-\; \frac{I_\text{ion}(\Vm_{i,j}^{\,n})}{C_m}\right)
+        \]
+      </div>
+      <p>
+        \(\Delta t\) can't be made arbitrarily large without the simulation blowing up numerically
+        &mdash; explicit diffusion schemes like this one need roughly \(\Delta t \lesssim
+        h^2/(4D)\) (a standard stability bound, not derived here) to stay stable, which is why real
+        solvers either take small time steps or use a more complex implicit scheme instead. This
+        document sticks to explicit forward Euler because it's the version you can read and
+        implement in an afternoon &mdash; the tradeoff (simplicity for a tighter step-size
+        constraint) is worth knowing about even without deriving it.
+      </p>
+
+      <h3>A placeholder ionic current</h3>
+      <p>
+        A real \(I_\text{ion}\) (Courtemanche or otherwise) is a system of a dozen-plus coupled
+        ODEs for individual ion channel gates &mdash; not something to reproduce here. For a
+        solver you could actually run and watch produce a traveling excitation wave, the standard
+        minimal stand-in is the <strong>FitzHugh&ndash;Nagumo</strong> model: one cubic
+        nonlinearity in \(\Vm\) plus a single slow "recovery" variable \(w\) that eventually pulls
+        \(\Vm\) back down after it fires &mdash; enough nonlinearity to be genuinely excitable
+        (small perturbations die out, large ones trigger a full spike), without the full complexity
+        of a real cell model:
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(6.4) placeholder reaction term</span>
+        \[
+        I_\text{ion}(\Vm, w) \;=\; \Vm(\Vm - a)(\Vm - 1) + w, \qquad
+        \frac{dw}{dt} = \epsilon(\Vm - \gamma w)
+        \]
+      </div>
+      <p>
+        with \(a\) a small threshold constant (e.g. 0.1), \(\gamma\) and small \(\epsilon\)
+        controlling how slowly recovery happens relative to the fast upstroke. This is explicitly a
+        toy &mdash; it does not reproduce a real cardiac action potential's shape or
+        pharmacology &mdash; but it is genuinely excitable, and it's simple enough to fit in the
+        pseudocode below.
+      </p>
+
+      <h3>Putting it together: pseudocode</h3>
+      <pre><code># 2D explicit forward-Euler monodomain solver, isotropic scalar D,
+# FitzHugh-Nagumo placeholder reaction term. Grid is (ny, nx); Neumann
+# (no-flux) boundaries via edge-replication, consistent with the
+# intracellular no-flux condition noted in §4.
+
+import numpy as np
+
+def laplacian(V, h):
+    # 5-point stencil (6.2), edges replicated -&gt; zero-flux boundary
+    Vp = np.pad(V, 1, mode="edge")
+    return (
+        Vp[2:, 1:-1] + Vp[:-2, 1:-1] +
+        Vp[1:-1, 2:] + Vp[1:-1, :-2] -
+        4.0 * V
+    ) / h**2
+
+def step(V, w, h, dt, D, Cm, a=0.1, eps=0.01, gamma=0.5):
+    lap = laplacian(V, h)
+    I_ion = V * (V - a) * (V - 1.0) + w
+    dV = D * lap - I_ion / Cm
+    dw = eps * (V - gamma * w)
+    V_next = V + dt * dV
+    w_next = w + dt * dw
+    return V_next, w_next
+
+def run(ny, nx, h, dt, n_steps, D=1.0, Cm=1.0, stim_region=None):
+    V = np.zeros((ny, nx))
+    w = np.zeros((ny, nx))
+    if stim_region is not None:            # e.g. a small patch, S1 stimulus
+        V[stim_region] = 1.0
+    history = [V.copy()]
+    for _ in range(n_steps):
+        V, w = step(V, w, h, dt, D, Cm)
+        history.append(V.copy())
+    return history                          # list of (ny, nx) snapshots, one per dt</code></pre>
+      <p>
+        <code>stim_region</code> is where an S1 (or, called a second time at a different site and
+        a shorter delay, S2) stimulus would be applied &mdash; exactly the induction protocol
+        behind §7c and this project's own Phase 2 rotor induction, just delivered here as a raw
+        initial-condition bump rather than openCARP's actual current-injection stimulus mechanism.
+        Practice Problem 4 in §8 asks you to extend this code to reproduce that S1&ndash;S2
+        protocol directly.
+      </p>
+
+      <h3>FEM, conceptually: the weak formulation</h3>
+      <p>
+        FEM starts from the same PDE but takes a different first step. Instead of approximating
+        \(\nabla^2\Vm\) pointwise, multiply both sides of the PDE by an arbitrary smooth "test
+        function" \(v(x)\) and integrate over the whole domain \(\Omega\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(6.5)</span>
+        \[
+        \int_\Omega v \,\nabla\cdot(\sigma_m\nabla \Vm)\, d\Omega \;=\; \int_\Omega v\,\beta\!\left(C_m\frac{\partial \Vm}{\partial t} + I_\text{ion}\right) d\Omega
+        \]
+      </div>
+      <p>
+        Then integrate the left side by parts (the divergence-theorem move, the same tool §3
+        introduced) to shift one derivative off \(\Vm\) and onto the test function \(v\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(6.6)</span>
+        \[
+        \int_\Omega v \,\nabla\cdot(\sigma_m\nabla \Vm)\, d\Omega
+        \;=\; \underbrace{\oint_{\partial\Omega} v\,(\sigma_m\nabla \Vm)\cdot\hat{\mathbf n}\, dA}_{=\,0 \text{ under the no-flux BC (§4)}}
+        \;-\; \int_\Omega \nabla v \cdot (\sigma_m \nabla \Vm)\, d\Omega
+        \]
+      </div>
+      <p>
+        The boundary term vanishes for exactly the physical reason §4's callout gave &mdash; no
+        current flows across the tissue boundary &mdash; which is a satisfying, concrete payoff for
+        having taken that aside seriously. What's left, \(-\int_\Omega \nabla v\cdot(\sigma_m
+        \nabla \Vm)\,d\Omega\), only needs <em>first</em> derivatives of \(\Vm\), not second
+        &mdash; the "weak form" needs less smoothness from \(\Vm\) than the original PDE did, which
+        is exactly what lets FEM approximate \(\Vm\) with simple, low-order (even piecewise-linear)
+        functions on each element and still get a valid solution. Choosing a finite basis of test
+        functions \(v\) (typically one "hat function" per mesh node) turns this integral equation
+        into a finite linear system &mdash; the FEM analogue of the stencil equation (6.2).
+      </p>
+      <p>
+        This is precisely why openCARP (and FEM-based cardiac solvers generally) use unstructured
+        meshes generated by a dedicated tool (<code>meshtool</code>, see
+        <code>docs/IMPLEMENTATION_PLAN.md</code> §4.3) rather than a regular grid like the
+        pseudocode above: a mesh of triangles or tetrahedra can hug an irregular chamber boundary
+        exactly, where a rectangular grid could only approximate it in stair-steps. (Note: the
+        regular 126&times;126 grid <code>opencarp/phase_singularity.py</code> works on, described
+        in <code>docs/PHASE2_METHODOLOGY.md</code> §4, is a resampled <em>analysis</em> grid built
+        for the phase-singularity post-processing step &mdash; a separate, later stage from
+        openCARP's own FEM simulation mesh, not a description of how the simulation itself was
+        discretized.)
+      </p>
+    </section>
+    <section class="chapter" id="s7">
+      <div class="chapter-head">
+        <p class="chapter-num">07 &middot; Worked examples</p>
+        <h2>From a solvable toy to this project's own rotor</h2>
+        <p class="chapter-goal">You should come out of this section able to connect every idea above to an actual simulated result already sitting in this repository.</p>
+      </div>
+
+      <h3>7a &middot; The 1D cable equation, and one piece you can solve by hand</h3>
+      <p>
+        Restrict everything to one spatial dimension (a single fiber) and you get the
+        <strong>cable equation</strong> &mdash; historically the oldest of these models, developed
+        for nerve fibers decades before "bidomain" existed as a term, and the 1D special case of
+        (6.1):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(7.1)</span>
+        \[
+        C_m \frac{\partial \Vm}{\partial t} \;=\; \frac{1}{\beta}\,\sigma_m\frac{\partial^2 \Vm}{\partial x^2} \;-\; I_\text{ion}(\Vm)
+        \]
+      </div>
+      <p>
+        The full nonlinear version (real \(I_\text{ion}\)) doesn't have a clean closed-form
+        solution &mdash; that's exactly why §6 reached for numerics. But one simplified corner of
+        it does, and it's worth solving because the answer is a real, physically meaningful
+        number. Turn off the nonlinear ionic current and replace it with a simple linear leak,
+        \(I_\text{ion}(\Vm) \to \Vm/R_m\) (a passive membrane, no excitability &mdash; just charge
+        leaking back across a resistance \(R_m\)), and ask for the <em>steady-state</em> shape
+        \(\Vm(x)\) around a constant current \(I_0\) injected at \(x=0\):
+      </p>
+      <div class="eq-plate">
+        <span class="eq-tag">(7.2)</span>
+        \[
+        \frac{\sigma_m}{\beta}\frac{d^2\Vm}{dx^2} \;=\; \frac{\Vm}{R_m}
+        \qquad\Longrightarrow\qquad
+        \Vm(x) \;=\; \Vm(0)\, e^{-|x|/\lambda}, \qquad \lambda \equiv \sqrt{\frac{\sigma_m R_m}{\beta}}
+        \]
+      </div>
+      <p>
+        (You can check this solves (7.2) by direct substitution &mdash; differentiating
+        \(e^{-|x|/\lambda}\) twice brings down a factor of \(1/\lambda^2\), which is exactly
+        \(\beta/(\sigma_m R_m)\) by the definition of \(\lambda\).) \(\lambda\) is the tissue's
+        <strong>electrotonic space constant</strong>: a real, measurable quantity &mdash; the
+        distance over which a passive voltage disturbance decays to \(1/e\) of its value &mdash;
+        and it's a genuine, standard result in cable theory, not a toy invented for this document.
+        The active, nonlinear case (real \(I_\text{ion}\)) replaces this decaying exponential with
+        a <em>traveling wave</em> solution instead &mdash; a fixed-shape pulse moving at constant
+        conduction velocity \(\theta\), \(\Vm(x,t) = f(x - \theta t)\) &mdash; which is the
+        mechanism behind every propagating wavefront in the rest of this section, including
+        Phase 2's own rotor; openCARP's example even parameterizes this velocity directly (its
+        working directory name includes <code>cv_0.3</code>, i.e. a target conduction velocity of
+        0.3&nbsp;m/s &mdash; see <code>opencarp/README.md</code>).
+      </p>
+
+      <h3>7b &middot; A planar wavefront, and why it isn't a circle</h3>
+      <p>
+        Now go to 2D, homogeneous tissue, and stimulate a small region. Qualitatively: the
+        reaction term (6.1) means any point whose \(\Vm\) crosses threshold rapidly depolarizes
+        (the fast, cubic-like upswing in the FitzHugh&ndash;Nagumo term (6.4), or the true sodium
+        upstroke in a real cell model); the diffusion term spreads that depolarization to
+        immediate neighbors, which then cross threshold themselves and fire in turn. The net
+        effect is a <strong>wavefront</strong> &mdash; the moving boundary between "already fired"
+        and "not yet fired" tissue &mdash; propagating outward from the stimulus site, exactly the
+        way a line of falling dominoes propagates outward from wherever you tip the first one.
+      </p>
+      <p>
+        If \(\sigma_m\) were an isotropic scalar, that wavefront would be a perfect expanding
+        circle &mdash; diffusion spreads equally fast in every direction. But §4 established that
+        \(\sigi\) and (under the monodomain assumption) \(\sigma_m\) are anisotropic tensors,
+        conducting more readily along the fiber direction than across it. A wavefront in real
+        tissue is therefore not a circle but an <strong>ellipse</strong>, elongated along the
+        local fiber direction &mdash; conduction velocity scales with \(\sqrt{\sigma_m}\) along
+        each axis, so the 10:1-ish intracellular anisotropy ratio from §4 translates to roughly a
+        \(\sqrt{10}\!\approx\!3\):1 velocity ratio between the fast and slow directions, a
+        commonly cited figure in the EP literature.
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 680 300" role="img" aria-label="A point stimulus in isotropic tissue produces a circular expanding wavefront. The same stimulus in anisotropic tissue, with conductivity higher along the fiber direction than across it, produces an elliptical wavefront elongated along the fibers.">
+          <text x="170" y="26" text-anchor="middle" font-family="IBM Plex Mono" font-size="12.5" fill="var(--muted)">isotropic σ &mdash; circular wavefront</text>
+          <circle cx="170" cy="160" r="30" fill="none" stroke="var(--line-strong)" stroke-width="1.4" stroke-dasharray="3 4"/>
+          <circle cx="170" cy="160" r="60" fill="none" stroke="var(--line-strong)" stroke-width="1.4" stroke-dasharray="3 4"/>
+          <circle cx="170" cy="160" r="90" fill="none" stroke="var(--intra)" stroke-width="2.2"/>
+          <circle cx="170" cy="160" r="4" fill="var(--vm)"/>
+          <text x="170" y="145" text-anchor="middle" font-family="IBM Plex Mono" font-size="9.5" fill="var(--vm)">stimulus</text>
+
+          <text x="510" y="26" text-anchor="middle" font-family="IBM Plex Mono" font-size="12.5" fill="var(--muted)">anisotropic σ &mdash; elliptical wavefront</text>
+          <line x1="400" y1="160" x2="620" y2="160" stroke="var(--extra-line)" stroke-width="1" stroke-dasharray="2 4"/>
+          <text x="612" y="176" font-family="IBM Plex Mono" font-size="9.5" fill="var(--extra-ink)">fiber direction</text>
+          <ellipse cx="510" cy="160" rx="30" ry="12" fill="none" stroke="var(--line-strong)" stroke-width="1.4" stroke-dasharray="3 4"/>
+          <ellipse cx="510" cy="160" rx="60" ry="24" fill="none" stroke="var(--line-strong)" stroke-width="1.4" stroke-dasharray="3 4"/>
+          <ellipse cx="510" cy="160" rx="100" ry="38" fill="none" stroke="var(--intra)" stroke-width="2.2"/>
+          <circle cx="510" cy="160" r="4" fill="var(--vm)"/>
+          <text x="510" y="145" text-anchor="middle" font-family="IBM Plex Mono" font-size="9.5" fill="var(--vm)">stimulus</text>
+          <text x="510" y="230" text-anchor="middle" font-family="IBM Plex Mono" font-size="9.5" fill="var(--intra)">fast along fiber, slow across</text>
+        </svg>
+        <figcaption><strong>Figure 4.</strong> A point stimulus spreading outward in homogeneous tissue. Left: an isotropic conductivity produces a circular wavefront &mdash; equal speed in every direction. Right: the anisotropic conductivity tensor from §4 makes the wavefront an ellipse, elongated along the local fiber direction, because current (and therefore the depolarizing wave it drives) is conducted preferentially along fibers.</figcaption>
+      </figure>
+
+      <h3>7c &middot; This project's own rotor, now that the math is on the table</h3>
+      <p>
+        Everything above is exactly what was running underneath Phase 2's openCARP simulation
+        (<code>docs/PHASE2_METHODOLOGY.md</code> §2). In concrete terms: openCARP solved the
+        monodomain reaction-diffusion equation (6.1) &mdash; with the real Courtemanche-Ramirez-
+        Nattel \(I_\text{ion}\) in place of the placeholder (6.4), on an unstructured FEM mesh
+        (§6) built by <code>meshtool</code>, over a 5cm&times;5cm sheet with a circular
+        low-conductivity ("fibrotic") patch standing in for scar substrate &mdash; forced by a
+        train of pacing stimuli (S1) at progressively shorter intervals, then one final premature
+        stimulus (S2). Every one of those pieces is now a named term or step in this document:
+        the mesh is §6's FEM discretization; the pacing stimuli are §6's <code>stim_region</code>
+        forcing term, applied repeatedly; the fibrotic patch is a local reduction in \(\sigma_m\)
+        exactly like the reduced-anisotropy comparison in Figure 4, just localized rather than
+        uniform.
+      </p>
+      <p>
+        The mechanism that turns "a wave that didn't quite make it" into a rotor is a direct
+        consequence of §6's reaction term: tissue that just fired needs time to <em>recover</em>
+        (the reaction term's recovery variable, \(w\) in the placeholder (6.4), or the real gating
+        variables in Courtemanche) before it can fire again. A normal-timing beat waits long
+        enough that recovery is complete everywhere, and the resulting wavefront (§7b) expands as
+        a clean, unbroken ellipse. The premature S2 beat doesn't wait long enough: part of the
+        tissue near the fibrotic patch is still mid-recovery when S2 arrives, can't fire yet, and
+        blocks the wave locally &mdash; while the rest of the wavefront, in tissue that <em>had</em>
+        recovered, keeps propagating and curls around the blocked region instead of just
+        continuing outward. If the geometry and timing line up (which is precisely what the S1
+        train was tuned to arrange), that curl never straightens back out &mdash; it becomes the
+        self-sustaining spiral tracked in the two figures below.
+      </p>
+
+      <figure>
+        <img src="figures/vm_snapshots.png" alt="Six snapshots of transmembrane voltage Vm across the 5cm by 5cm simulated tissue patch, at t = 0, 80, 160, 240, 320, and 400 milliseconds, showing a spiral wave of depolarization rotating around a tracked core marked with a green star.">
+        <figcaption><strong>Figure 5.</strong> <code>results/phase2_reentry_2026-08-20/vm_snapshots.png</code> &mdash; \(\Vm\) across the tissue patch at six instants (red \(\approx\)0&ndash;20mV, depolarized; blue \(\approx\)&minus;80mV, resting), the direct numerical output of solving (6.1) with real \(I_\text{ion}\). The spiral shape <em>is</em> the wavefront from §7b, now curling around itself instead of expanding outward; the green star is the phase singularity (rotor core) tracked by the method in <code>docs/PHASE2_METHODOLOGY.md</code> §3&ndash;4, from <em>this same</em> \(\Vm\) field &mdash; the phase-singularity machinery needs nothing beyond what's plotted here.</figcaption>
+      </figure>
+
+      <figure>
+        <img src="figures/rotor_trajectory.png" alt="The rotor core's tracked position over the full simulated time window, meandering near the edge of the fibrotic patch, plotted over the tissue patch showing healthy myocardium, the fibrotic substrate, the S2 stimulus site, and the resulting ablation-target label region.">
+        <figcaption><strong>Figure 6.</strong> <code>results/phase2_reentry_2026-08-20/rotor_trajectory.png</code> &mdash; the same rotor's core position over the full window (purple&rarr;yellow = early&rarr;late), meandering along the edge of the fibrotic patch (gray) rather than sitting still, with the S2 stimulus site marked separately to the west. The red region is the ablation-target label from <code>docs/PHASE2_METHODOLOGY.md</code> §6: every mesh point within 3mm of anywhere the core visited. Notice the core stays anchored near the low-conductivity patch boundary &mdash; exactly the mechanism described above, where reduced local \(\sigma_m\) is what let the S2 wavefront block and curl in the first place.</figcaption>
+      </figure>
+    </section>
+    <section class="chapter" id="s8">
+      <div class="chapter-head">
+        <p class="chapter-num">08 &middot; Practice problems</p>
+        <h2>Working problems, not just reading them</h2>
+        <p class="chapter-goal">Attempt each one before opening its solution or hint &mdash; that's most of the value. Difficulty runs warm-up &rarr; core &rarr; stretch.</p>
+      </div>
+
+      <div class="problem">
+        <div class="problem-head">
+          <span class="problem-chip chip-warmup">warm-up &middot; own words</span>
+          <span class="problem-title">1. Explain tensor conductivity to a skeptical colleague</span>
+        </div>
+        <div class="problem-body">
+          <p>
+            A colleague who's comfortable with resistor networks but has never seen "anisotropic
+            conductivity" asks you why \(\sigi\) and \(\sige\) in the bidomain equations can't just
+            be ordinary numbers, the way resistance is in a simple circuit. Explain it to them in
+            three or four sentences, no equations. Write your answer before opening the hint.
+          </p>
+          <details class="solution">
+            <summary>Show a checklist, not an answer</summary>
+            <div class="solution-body">
+              <p>
+                This is an own-words exercise on purpose &mdash; check your answer against this
+                checklist rather than a model paragraph:
+              </p>
+              <ul>
+                <li>Did you say <em>why</em> tissue conducts differently in different directions (cell shape/alignment, gap-junction density along vs. across fibers) rather than just asserting "it's anisotropic"?</li>
+                <li>Did you explain what a scalar conductivity <em>forces</em> to be true (current always flows exactly opposite the potential gradient) and why that's specifically wrong here?</li>
+                <li>Did you avoid reaching for the word "tensor" as if saying it explains anything? A good answer should work even if the listener has never heard that word.</li>
+                <li>Bonus: did you mention that \(\sigi\) and \(\sige\) don't even share the same anisotropy ratio as each other (§4), which is <em>part of</em> why monodomain is an approximation, not an identity?</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="problem-head">
+          <span class="problem-chip chip-warmup">warm-up &middot; derivation</span>
+          <span class="problem-title">2. Verify the finite-difference limit by hand</span>
+        </div>
+        <div class="problem-body">
+          <p>
+            Confirm formula (2.3) &mdash; that \(\big(f(x-\Delta x) - 2f(x) + f(x+\Delta x)\big)/
+            \Delta x^2 \to f''(x)\) as \(\Delta x \to 0\) &mdash; using a Taylor expansion of
+            \(f(x\pm\Delta x)\) around \(x\).
+          </p>
+          <details class="solution">
+            <summary>Show full solution</summary>
+            <div class="solution-body">
+              <p>Expand both neighbor points to second order:</p>
+              <p>
+                \(f(x+\Delta x) = f(x) + f'(x)\Delta x + \tfrac12 f''(x)\Delta x^2 + O(\Delta x^3)\)<br>
+                \(f(x-\Delta x) = f(x) - f'(x)\Delta x + \tfrac12 f''(x)\Delta x^2 + O(\Delta x^3)\)
+              </p>
+              <p>Add the two expansions &mdash; the odd-order (\(f'\)) terms have opposite signs and cancel exactly:</p>
+              <p>\(f(x+\Delta x) + f(x-\Delta x) = 2f(x) + f''(x)\Delta x^2 + O(\Delta x^4)\)</p>
+              <p>Subtract \(2f(x)\) from both sides and divide by \(\Delta x^2\):</p>
+              <p>
+                \(\dfrac{f(x-\Delta x) - 2f(x) + f(x+\Delta x)}{\Delta x^2} = f''(x) + O(\Delta x^2)\)
+              </p>
+              <p>
+                which \(\to f''(x)\) as \(\Delta x \to 0\), with error shrinking quadratically
+                &mdash; worth noting for later: this is also why the stencil (6.2) is called
+                "second-order accurate."
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="problem-head">
+          <span class="problem-chip chip-core">core &middot; derivation</span>
+          <span class="problem-title">3. Derive monodomain from bidomain, from scratch</span>
+        </div>
+        <div class="problem-body">
+          <p>
+            Without looking back at §5: starting only from the two bidomain equations (4.1)&ndash;
+            (4.2) and the assumption \(\sige = k\sigi\), derive the monodomain equation and give an
+            explicit formula for \(\sigma_m\) in terms of \(\sigi\) and \(\sige\).
+          </p>
+          <details class="solution">
+            <summary>Show full solution</summary>
+            <div class="solution-body">
+              <p>
+                Write \(S = \beta(C_m \partial \Vm/\partial t + I_\text{ion})\). The two equations
+                are \(\nabla\cdot(\sigi\nabla\phii) = S\) and \(\nabla\cdot(\sige\nabla\phie) =
+                -S\). Substitute \(\sige = k\sigi\) into the second and divide by \(k\):
+                \(\nabla\cdot(\sigi\nabla\phie) = -S/k\). Now both equations share the operator
+                \(\nabla\cdot(\sigi\nabla(\,\cdot\,))\), so subtract the second from the first:
+                \(\nabla\cdot(\sigi\nabla(\phii-\phie)) = S + S/k = S(1+1/k)\), i.e.
+                \(\nabla\cdot(\sigi\nabla \Vm) = S\cdot(k+1)/k\). Solve for \(S\):
+                \(S = \dfrac{k}{k+1}\nabla\cdot(\sigi\nabla\Vm)\), and substitute back
+                \(S=\beta(C_m\partial\Vm/\partial t + I_\text{ion})\) to get
+                \(\nabla\cdot(\sigma_m\nabla\Vm) = \beta(C_m\partial\Vm/\partial t + I_\text{ion})\)
+                with \(\sigma_m = \dfrac{k}{k+1}\sigi\). Substituting back \(k = \sige\sigi^{-1}\)
+                (they commute here) gives the coordinate-free form
+                \(\sigma_m = \sigi\sige(\sigi+\sige)^{-1}\), the harmonic-mean form quoted in
+                (5.6). If your derivation matches this, you've reproduced the actual textbook
+                result, not just this document's version of it.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="problem-head">
+          <span class="problem-chip chip-core">core &middot; computational</span>
+          <span class="problem-title">4. Extend the §6 solver to the S1&ndash;S2 protocol</span>
+        </div>
+        <div class="problem-body">
+          <p>
+            Extend the <code>run()</code> function from §6 to reproduce (a simplified version of)
+            the induction protocol behind Figures 5&ndash;6: a train of S1 stimuli at one site,
+            each fired after a fixed recovery interval, followed by a single premature S2 stimulus
+            at a <em>different</em> site. Then reason about (or actually run, if you turn this into
+            real numpy) what happens for S2 delivered very early, very late, and somewhere in
+            between, relative to the local recovery time.
+          </p>
+          <details class="solution">
+            <summary>Show hint and code skeleton</summary>
+            <div class="solution-body">
+              <p>
+                You need two things <code>run()</code> doesn't currently have: a way to apply a
+                stimulus <em>partway through</em> the simulation (not just as the initial
+                condition), and a second stimulus site.
+              </p>
+              <pre><code>def run_s1s2(ny, nx, h, dt, D=1.0, Cm=1.0,
+             s1_region=None, s1_times=(),
+             s2_region=None, s2_time=None, n_steps=4000):
+    V = np.zeros((ny, nx)); w = np.zeros((ny, nx))
+    history = []
+    for step_i in range(n_steps):
+        t = step_i * dt
+        if any(abs(t - t1) &lt; dt/2 for t1 in s1_times):
+            V[s1_region] = 1.0                 # re-stimulate S1 site
+        if s2_time is not None and abs(t - s2_time) &lt; dt/2:
+            V[s2_region] = 1.0                 # single premature S2
+        V, w = step(V, w, h, dt, D, Cm)
+        history.append(V.copy())
+    return history</code></pre>
+              <p>
+                Qualitatively: if S2 fires <em>very early</em> (tissue near the S1 site, and often
+                near your chosen S2 site too, hasn't recovered), the stimulus meets tissue that
+                simply can't respond at all &mdash; nothing propagates, no wave, no rotor. If S2
+                fires <em>very late</em> (after everything has fully recovered), it behaves just
+                like another ordinary S1 beat &mdash; a clean expanding wave, no block, no rotor.
+                The interesting window is in between: recovery is <em>partial and spatially
+                uneven</em> &mdash; often because of a heterogeneity like the fibrotic patch, which
+                recovers at a different rate than surrounding healthy tissue &mdash; so part of the
+                wavefront blocks and part doesn't, which is exactly the curling mechanism described
+                in §7c. This is precisely why Phase 2's own induction used a whole descending-BCL
+                train (200ms down to 100ms) rather than guessing one S2 delay: narrowing in on that
+                middle window by trial and error is genuinely how the real protocol was found (see
+                <code>docs/PHASE2_METHODOLOGY.md</code> §2 and <code>opencarp/README.md</code> for
+                which specific timing worked).
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="problem-head">
+          <span class="problem-chip chip-stretch">stretch &middot; predict, then check</span>
+          <span class="problem-title">5. What does raising &beta; do to conduction velocity?</span>
+        </div>
+        <div class="problem-body">
+          <p>
+            Cellular hypertrophy (cells enlarging, a real feature of diseased/remodeled atrial
+            tissue) changes \(\beta\), the membrane surface-to-volume ratio, without necessarily
+            changing \(\sigma_m\) itself. Using the local current-balance reading of
+            \(\nabla\cdot(\sigma\nabla\varphi)=\text{source}\) from §3 &mdash; predict, in words,
+            what happens to how fast a wavefront propagates if \(\beta\) increases while
+            \(\sigma_m\) stays fixed. Then check your prediction against equation (6.1).
+          </p>
+          <details class="solution">
+            <summary>Show reasoning</summary>
+            <div class="solution-body">
+              <p>
+                From §3's reading, a bigger \(\beta\) means more membrane area is packed into the
+                same tissue volume, so the same local current has <em>more</em> membrane to charge
+                up (more capacitance and more channels per unit volume) before \(\Vm\) can rise by
+                a given amount &mdash; the "sink" at each point got bigger relative to the current
+                available to feed it. Equation (6.1) confirms this quantitatively: the diffusion
+                coefficient is \(D = \sigma_m/(\beta C_m)\), so increasing \(\beta\) with
+                \(\sigma_m\) fixed directly <em>decreases</em> \(D\). Since conduction velocity in
+                a reaction-diffusion system scales with \(\sqrt{D}\) (a standard result this
+                document hasn't derived, but is consistent with the traveling-wave picture in
+                §7a), a higher \(\beta\) predicts <strong>slower</strong> conduction &mdash; which
+                matches the real clinical association between structural remodeling/hypertrophy
+                and conduction slowing in diseased atrial tissue, a genuine substrate for
+                arrhythmia in its own right, independent of anything to do with fibrotic patches.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="problem">
+        <div class="problem-head">
+          <span class="problem-chip chip-stretch">stretch &middot; computational</span>
+          <span class="problem-title">6. Extend the solver to anisotropic conductivity</span>
+        </div>
+        <div class="problem-body">
+          <p>
+            The §6 pseudocode uses one scalar \(D\) for both grid axes &mdash; isotropic. Extend it
+            to a diagonal anisotropic tensor, \(D_x \ne D_y\), aligned with the grid axes, and
+            predict what a single point stimulus's resulting wavefront will look like, using
+            Figure 4 as a reference.
+          </p>
+          <details class="solution">
+            <summary>Show hint</summary>
+            <div class="solution-body">
+              <p>
+                Split the single Laplacian into its two axis contributions instead of combining
+                them with one shared factor:
+              </p>
+              <pre><code>def laplacian_aniso(V, h, Dx, Dy):
+    Vp = np.pad(V, 1, mode="edge")
+    d2x = (Vp[1:-1, 2:] - 2*V + Vp[1:-1, :-2]) / h**2
+    d2y = (Vp[2:, 1:-1] - 2*V + Vp[:-2, 1:-1]) / h**2
+    return Dx * d2x + Dy * d2y   # replaces "D * laplacian(V, h)" in step()</code></pre>
+              <p>
+                With \(D_x > D_y\) (faster diffusion along \(x\)), a point stimulus's wavefront
+                should come out elongated along the \(x\)-axis &mdash; the discrete, numerical
+                version of exactly the ellipse argued for qualitatively in Figure 4, with
+                \(D_x/D_y\) playing the role \(\sigma_{i,l}/\sigma_{i,t}\) played there. If you
+                actually run this, you can check the aspect ratio of the resulting ellipse against
+                \(\sqrt{D_x/D_y}\) (velocity scales as \(\sqrt D\), per Problem 5) &mdash; a
+                genuine, checkable numerical prediction.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="doc-footer">
+    <p>cardiac-ep-portfolio &middot; docs/BIDOMAIN_MONODOMAIN_TUTORIAL.html &middot; companion to
+    <a href="./PHASE2_METHODOLOGY.md">PHASE2_METHODOLOGY.md</a> and
+    <a href="./ep-primer.html">ep-primer.html</a></p>
+  </footer>
+</main>
+
+</div>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+  var targets = links.map(function (l) { return document.getElementById(l.dataset.target); }).filter(Boolean);
+  if (!('IntersectionObserver' in window) || !targets.length) return;
+  var byId = {};
+  links.forEach(function (l) { byId[l.dataset.target] = l; });
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var link = byId[e.target.id];
+      if (!link) return;
+      if (e.isIntersecting) {
+        links.forEach(function (l) { l.classList.remove('active'); });
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+  targets.forEach(function (t) { obs.observe(t); });
+})();
+</script>
+</body>
+</html>

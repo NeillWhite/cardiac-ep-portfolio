@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>openCARP Simulation Primer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)']],
+      displayMath: [['\\[', '\\]']],
+      tags: 'none',
+      macros: {
+        Vm: '{V_m}',
+        phii: '{\\varphi_i}',
+        phie: '{\\varphi_e}',
+        sigi: '{\\boldsymbol{\\sigma}_i}',
+        sige: '{\\boldsymbol{\\sigma}_e}'
+      }
+    },
+    svg: { fontCache: 'global' },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+<style>
+/* ============================= tokens ============================= */
+:root {
+  --paper: #F7F3EC;
+  --paper-raised: #FFFFFE;
+  --paper-sunken: #EFE8DA;
+  --ink: #211D1B;
+  --ink-soft: #55504A;
+  --muted: #8C8479;
+  --line: #E3D9C9;
+  --line-strong: #D2C4AC;
+
+  --intra: #A85A22;
+  --intra-ink: #7A4118;
+  --intra-soft: #F3E4D3;
+  --intra-line: #E2BE97;
+
+  --extra: #1F6E82;
+  --extra-ink: #16505F;
+  --extra-soft: #DCEAEE;
+  --extra-line: #A8CDD6;
+
+  --vm: #6B4E82;
+  --vm-soft: #EAE2EF;
+
+  --good: #4C7A3D;
+  --bad: #A8412F;
+
+  --display: 'Space Grotesk', sans-serif;
+  --body: 'Source Serif 4', Georgia, serif;
+  --mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+
+  --shadow: 0 1px 2px rgba(40, 30, 15, 0.06), 0 6px 20px rgba(40, 30, 15, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17130F;
+    --paper-raised: #201A14;
+    --paper-sunken: #120F0C;
+    --ink: #F2EBE0;
+    --ink-soft: #CBC0AF;
+    --muted: #8F8577;
+    --line: #382F24;
+    --line-strong: #493D2E;
+
+    --intra: #E08A45;
+    --intra-ink: #F0AA71;
+    --intra-soft: #2E2015;
+    --intra-line: #5A3F22;
+
+    --extra: #6FC3D9;
+    --extra-ink: #9AD9E8;
+    --extra-soft: #12262C;
+    --extra-line: #234C57;
+
+    --vm: #C6A8E0;
+    --vm-soft: #241C2C;
+
+    --good: #7FBE6A;
+    --bad: #E08066;
+
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 24px rgba(0,0,0,0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #17130F;
+  --paper-raised: #201A14;
+  --paper-sunken: #120F0C;
+  --ink: #F2EBE0;
+  --ink-soft: #CBC0AF;
+  --muted: #8F8577;
+  --line: #382F24;
+  --line-strong: #493D2E;
+
+  --intra: #E08A45;
+  --intra-ink: #F0AA71;
+  --intra-soft: #2E2015;
+  --intra-line: #5A3F22;
+
+  --extra: #6FC3D9;
+  --extra-ink: #9AD9E8;
+  --extra-soft: #12262C;
+  --extra-line: #234C57;
+
+  --vm: #C6A8E0;
+  --vm-soft: #241C2C;
+
+  --good: #7FBE6A;
+  --bad: #E08066;
+
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 24px rgba(0,0,0,0.35);
+}
+
+/* ============================= base ============================= */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+::selection { background: var(--vm); color: var(--paper-raised); }
+
+a { color: var(--extra-ink); text-decoration-color: var(--extra-line); }
+a:hover { text-decoration-color: var(--extra-ink); }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--vm);
+  outline-offset: 2px;
+}
+
+.mono { font-family: var(--mono); }
+.i-term { color: var(--intra-ink); font-weight: 600; }
+.e-term { color: var(--extra-ink); font-weight: 600; }
+.vm-term { color: var(--vm); font-weight: 600; }
+
+.doc-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  max-width: 1220px;
+  margin: 0 auto;
+}
+
+/* ============================= sidebar ============================= */
+.toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 32px 20px 32px 28px;
+  border-right: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.toc .brand {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.toc .brand strong {
+  display: block;
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  margin-top: 2px;
+}
+
+.toc-list {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.toc-list a {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+  line-height: 1.35;
+}
+
+.toc-list a:hover { background: var(--paper-sunken); color: var(--ink); }
+.toc-list a.active { background: var(--intra-soft); color: var(--intra-ink); }
+.toc-list .num { color: var(--muted); flex-shrink: 0; width: 1.4em; }
+.toc-list a.active .num { color: var(--intra); }
+
+.toc-list li + li { margin-top: 1px; }
+.toc-list .sub { padding-left: 26px; font-size: 12px; }
+
+@media (max-width: 920px) {
+  .doc-shell { grid-template-columns: 1fr; }
+  .toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+}
+
+/* ============================= main content ============================= */
+main { min-width: 0; padding: 0 0 80px; }
+
+.hero {
+  padding: 56px 40px 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hero .eyebrow {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+
+.hero .lede {
+  font-size: 19px;
+  color: var(--ink-soft);
+  max-width: 66ch;
+  margin: 0 0 22px;
+}
+
+.two-domain-badge {
+  display: inline-flex;
+  gap: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  border: 1px solid var(--line-strong);
+}
+.two-domain-badge span {
+  padding: 5px 12px;
+  font-weight: 600;
+}
+.two-domain-badge .i { background: var(--intra-soft); color: var(--intra-ink); }
+.two-domain-badge .e { background: var(--extra-soft); color: var(--extra-ink); }
+
+.hero-note {
+  margin-top: 26px;
+  padding: 16px 18px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 15px;
+  color: var(--ink-soft);
+  max-width: 66ch;
+}
+.hero-note strong { color: var(--ink); }
+
+.content { padding: 0 40px; max-width: 900px; }
+
+section.chapter {
+  padding: 56px 0;
+  border-bottom: 1px solid var(--line);
+}
+section.chapter:last-of-type { border-bottom: none; }
+
+.chapter-head { margin-bottom: 28px; }
+
+.chapter-num {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--intra);
+  margin: 0 0 6px;
+}
+
+.chapter-head h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 30px;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.chapter-goal {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0;
+  padding-left: 2px;
+  line-height: 1.5;
+}
+
+h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 21px;
+  margin: 38px 0 12px;
+  letter-spacing: -0.005em;
+}
+
+h4 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  margin: 26px 0 10px;
+  color: var(--ink);
+}
+
+p { margin: 0 0 18px; max-width: 72ch; }
+ul, ol { margin: 0 0 18px; padding-left: 1.3em; max-width: 70ch; }
+li { margin-bottom: 8px; }
+p:last-child, ul:last-child, ol:last-child { margin-bottom: 0; }
+
+strong { font-weight: 600; }
+
+.callout {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--vm);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-size: 16.5px;
+  max-width: 72ch;
+}
+.callout p:last-child { margin-bottom: 0; }
+.callout .callout-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vm);
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* equations */
+.eq-plate {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 22px 0;
+  position: relative;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+.eq-plate .eq-tag {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.eq-plate.i-flavor { border-left: 3px solid var(--intra); }
+.eq-plate.e-flavor { border-left: 3px solid var(--extra); }
+
+.term-key {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 16px 0 24px;
+  font-size: 15.5px;
+  max-width: 72ch;
+}
+.term-key dt { font-family: var(--mono); color: var(--ink); white-space: nowrap; }
+.term-key dd { margin: 0; color: var(--ink-soft); }
+
+/* code / pseudocode */
+pre {
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 100%;
+}
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--paper-sunken);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+pre code { background: none; padding: 0; }
+
+/* figures */
+figure {
+  margin: 26px 0;
+  padding: 0;
+}
+figure svg { width: 100%; height: auto; display: block; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; }
+figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+figcaption {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 10px;
+  line-height: 1.5;
+  max-width: 72ch;
+}
+figcaption strong { color: var(--ink-soft); }
+
+.fig-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 640px) { .fig-pair { grid-template-columns: 1fr; } }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; margin: 20px 0; }
+table { border-collapse: collapse; font-size: 15px; min-width: 100%; }
+th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--mono); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 600; }
+
+/* practice problems */
+.problem {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 20px 0;
+  overflow: hidden;
+}
+.problem-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.problem-chip {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.chip-warmup { background: var(--extra-soft); color: var(--extra-ink); }
+.chip-core { background: var(--intra-soft); color: var(--intra-ink); }
+.chip-stretch { background: var(--vm-soft); color: var(--vm); }
+.problem-title { font-family: var(--display); font-weight: 600; font-size: 16px; }
+.problem-body { padding: 18px 20px; }
+.problem-body p:last-child { margin-bottom: 0; }
+
+details.solution {
+  margin-top: 14px;
+  border-top: 1px dashed var(--line-strong);
+  padding-top: 12px;
+}
+details.solution summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--vm);
+  font-weight: 600;
+  list-style: none;
+}
+details.solution summary::-webkit-details-marker { display: none; }
+details.solution summary::before { content: "▸ "; }
+details.solution[open] summary::before { content: "▾ "; }
+details.solution .solution-body { margin-top: 12px; font-size: 16px; }
+details.solution .solution-body p:first-child { margin-top: 0; }
+
+/* footer */
+.doc-footer {
+  padding: 40px 40px 0;
+  margin-top: 20px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+.doc-footer a { color: var(--muted); }
+
+/* misc */
+.small-caps-note { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+hr.sep { border: none; border-top: 1px dashed var(--line-strong); margin: 30px 0; }
+</style>
+</head>
+<body>
+<div class="doc-shell">
+<nav class="toc" id="toc">
+  <p class="brand">cardiac-ep-portfolio<strong>openCARP Simulation Primer</strong></p>
+  <ul class="toc-list" id="toc-list">
+    <li><a href="#s1" data-target="s1"><span class="num">01</span> What openCARP solves</a></li>
+    <li><a href="#s2" data-target="s2"><span class="num">02</span> The ionic model</a></li>
+    <li><a href="#s3" data-target="s3"><span class="num">03</span> Mesh &amp; substrate</a></li>
+    <li><a href="#s4" data-target="s4"><span class="num">04</span> Stimulation &amp; induction</a></li>
+    <li><a href="#s5" data-target="s5"><span class="num">05</span> How a rotor forms</a></li>
+    <li><a href="#s6" data-target="s6"><span class="num">06</span> Phase singularities</a></li>
+    <li><a href="#s7" data-target="s7"><span class="num">07</span> Running the pipeline</a></li>
+    <li><a href="#s8" data-target="s8"><span class="num">08</span> What it does &amp; doesn't capture</a></li>
+    <li><a href="#s9" data-target="s9"><span class="num">09</span> Check yourself</a></li>
+  </ul>
+</nav>
+
+<main>
+  <header class="hero">
+    <p class="eyebrow">Reference document &middot; cardiac-ep-portfolio &middot; 2026-08-28</p>
+    <h1>From Equations to Rotors: What openCARP Actually Simulates</h1>
+    <p class="lede">
+      The <a href="./BIDOMAIN_MONODOMAIN_TUTORIAL.html">bidomain / monodomain tutorial</a> derived the
+      partial differential equation that describes electrical propagation in heart tissue. This
+      document is about the layer on top of it: what a solver like <strong>openCARP</strong> takes
+      as input, what the ionic model hidden inside \(I_\text{ion}\) actually is, and &mdash; the part
+      that matters most for this project &mdash; how a self-sustaining spiral wave, a
+      <strong>rotor</strong>, emerges from those equations, and why the point at its centre is the
+      thing Phase&nbsp;2 labels as an ablation target.
+    </p>
+    <div class="hero-note">
+      <strong>Why this document exists:</strong> Phases&nbsp;2&ndash;4 of this project rest entirely
+      on openCARP simulations. Defending that work in a conversation means being able to say what the
+      solver does, what the membrane model is, why a rotor forms, what its core means, and what the
+      2&#8209;D monodomain setup leaves out. It does <em>not</em> mean re-deriving the finite-element
+      discretization or the Courtemanche gating kinetics from memory. This primer targets the first
+      list, not the second.
+    </div>
+  </header>
+
+  <div class="content">
+
+  <!-- ============================================================ 01 -->
+  <section class="chapter" id="s1">
+    <div class="chapter-head">
+      <p class="chapter-num">01 &middot; What openCARP solves</p>
+      <h2>A reaction&ndash;diffusion equation, marched forward on a mesh</h2>
+      <p class="chapter-goal">You should come out of this section able to state, without notation, the two things happening at every point in the tissue every time step, and what openCARP needs from you to run.</p>
+    </div>
+
+    <p>
+      The tutorial's monodomain equation, written once more so this document stands on its own:
+    </p>
+
+    <div class="eq-plate">
+      <span class="eq-tag">monodomain</span>
+      \[
+        \chi\!\left( C_m \frac{\partial \Vm}{\partial t} + I_\text{ion}(\Vm, \mathbf{w}) \right)
+        \;=\; \nabla\!\cdot\!\big( \boldsymbol{\sigma}_m \nabla \Vm \big) \;+\; I_\text{stim}
+      \]
+    </div>
+
+    <p>
+      Read it as two halves joined by an equals sign, because that is exactly how the solver treats
+      it. The <strong>right-hand side</strong> is <em>diffusion</em>: the \(\nabla\!\cdot\!(\sigma_m
+      \nabla \Vm)\) term spreads transmembrane voltage from a depolarized patch into its
+      not-yet-depolarized neighbours, the way heat spreads down a metal bar. On its own, diffusion
+      only ever smooths things out &mdash; it could never sustain a travelling wave. The
+      <strong>left-hand side</strong> is the <em>reaction</em>: \(I_\text{ion}\) is the net current
+      through the cell membrane, and it is <em>regenerative</em> &mdash; when a patch of membrane is
+      pushed just past a threshold, its ion channels open and actively drive the voltage the rest of
+      the way up, dumping in far more charge than diffusion delivered. That regeneration is what lets
+      a wavefront travel across a whole atrium without dying out: each strip of tissue relights the
+      next.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 760 260" role="img" aria-label="A loop diagram: diffusion spreads transmembrane voltage to neighbouring tissue, which pushes that tissue past threshold, which triggers the ionic model to regenerate a full action potential there, which then diffuses further, and so on.">
+        <defs>
+          <marker id="rd-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <rect x="70" y="70" width="230" height="120" rx="10" fill="var(--extra-soft)" stroke="var(--extra-line)"/>
+        <text x="185" y="110" text-anchor="middle" font-family="Space Grotesk" font-size="15" font-weight="600" fill="var(--extra-ink)">DIFFUSION</text>
+        <text x="185" y="134" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--extra-ink)">∇·(σ ∇V_m)</text>
+        <text x="185" y="156" text-anchor="middle" font-family="Source Serif 4" font-size="12" fill="var(--ink-soft)">voltage bleeds into</text>
+        <text x="185" y="172" text-anchor="middle" font-family="Source Serif 4" font-size="12" fill="var(--ink-soft)">neighbouring tissue</text>
+
+        <rect x="460" y="70" width="230" height="120" rx="10" fill="var(--intra-soft)" stroke="var(--intra-line)"/>
+        <text x="575" y="110" text-anchor="middle" font-family="Space Grotesk" font-size="15" font-weight="600" fill="var(--intra-ink)">REACTION</text>
+        <text x="575" y="134" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--intra-ink)">I_ion(V_m, w)</text>
+        <text x="575" y="156" text-anchor="middle" font-family="Source Serif 4" font-size="12" fill="var(--ink-soft)">channels open, actively</text>
+        <text x="575" y="172" text-anchor="middle" font-family="Source Serif 4" font-size="12" fill="var(--ink-soft)">drive the full upstroke</text>
+
+        <path d="M300,105 C 360,80 400,80 460,105" fill="none" stroke="currentColor" stroke-width="1.8" marker-end="url(#rd-arr)"/>
+        <text x="380" y="78" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--muted)">pushes neighbour past threshold</text>
+        <path d="M460,155 C 400,180 360,180 300,155" fill="none" stroke="currentColor" stroke-width="1.8" marker-end="url(#rd-arr)"/>
+        <text x="380" y="198" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--muted)">new action potential now diffuses further</text>
+
+        <text x="380" y="34" text-anchor="middle" font-family="Source Serif 4" font-size="13" fill="var(--ink-soft)">A travelling wavefront is this loop, running down the tissue.</text>
+      </svg>
+      <figcaption><strong>Figure 1.</strong> The two halves of the equation form a feedback loop. Diffusion alone dissipates; the ionic reaction alone does nothing without a stimulus. Coupled, they propagate a wave indefinitely &mdash; and, under the right conditions (&sect;5), that wave can curl into a rotor that never stops.</figcaption>
+    </figure>
+
+    <h3>What &ldquo;a simulation&rdquo; is here</h3>
+    <p>
+      openCARP discretizes the tissue into a <strong>mesh</strong> of nodes. At every node it stores
+      the transmembrane voltage \(\Vm\) and the internal state \(\mathbf{w}\) of the ionic model
+      (gate positions, ion concentrations &mdash; &sect;2). Then it marches time forward in small
+      steps. Each step, at every node, it does two things:
+    </p>
+    <ol>
+      <li><strong>The diffusion update</strong> &mdash; a finite-element solve over the whole mesh
+        that moves \(\Vm\) between neighbouring nodes according to the local conductivity.</li>
+      <li><strong>The reaction update</strong> &mdash; an independent ordinary-differential-equation
+        solve <em>at each node separately</em>, advancing that node's ionic model by one step given
+        its current \(\Vm\). This is embarrassingly parallel and is where most of the compute
+        goes.</li>
+    </ol>
+    <p>
+      (Splitting the step into &ldquo;diffuse, then react&rdquo; rather than solving the coupled
+      system all at once is called <em>operator splitting</em>; it is standard and it is why the
+      ionic model can be swapped out without touching the diffusion solver.)
+    </p>
+
+    <div class="callout">
+      <span class="callout-label">What you provide</span>
+      <p>
+        A <strong>mesh</strong> (&sect;3); a <strong>conductivity</strong> field (&sect;3); an
+        <strong>ionic model</strong> by name (&sect;2); a <strong>stimulus protocol</strong>
+        &mdash; where and when to inject current (&sect;4); and a <strong>duration</strong>. openCARP
+        returns \(\Vm(\mathbf{x}, t)\) sampled on the mesh &mdash; and, if you ask, activation-time
+        maps, state checkpoints, and more. In this project the Python package
+        <code>carputils</code> assembles the command line and manages the run; openCARP itself is a
+        compiled C++ solver.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 02 -->
+  <section class="chapter" id="s2">
+    <div class="chapter-head">
+      <p class="chapter-num">02 &middot; The ionic model</p>
+      <h2>What is actually inside \(I_\text{ion}\)</h2>
+      <p class="chapter-goal">You should come out able to explain what a gating variable is, why the cardiac action potential has a plateau, and what &ldquo;Courtemanche with AF remodeling&rdquo; means and why this project uses it.</p>
+    </div>
+
+    <p>
+      The tutorial treated \(I_\text{ion}(\Vm, \mathbf{w})\) as a black box: &ldquo;the net membrane
+      current, some function of voltage and internal state.&rdquo; Opening the box is the difference
+      between saying &ldquo;a wave propagates&rdquo; and being able to say <em>why the tissue stays
+      unexcitable for 250&nbsp;ms afterwards</em> &mdash; which is the fact that makes reentry
+      possible.
+    </p>
+
+    <h3>Channels and gates</h3>
+    <p>
+      The membrane is a capacitor (it holds charge, \(C_m\)) with a set of ion channels wired across
+      it in parallel. Each channel type carries one ion species &mdash; sodium, potassium, calcium
+      &mdash; and its current is a conductance times a driving force:
+    </p>
+    <div class="eq-plate">
+      \[
+        I_\text{X} \;=\; g_\text{X}\cdot p_\text{X}(\Vm, t)\cdot\big(\Vm - E_\text{X}\big)
+      \]
+    </div>
+    <p>
+      \(E_\text{X}\) is the reversal potential for that ion (set by its concentration ratio across
+      the membrane); \(g_\text{X}\) is the maximum conductance; and \(p_\text{X}\) &mdash; the
+      important part &mdash; is the fraction of that channel population currently <em>open</em>. That
+      fraction is not fixed. It is controlled by <strong>gating variables</strong>: numbers between
+      0 and 1 that chase a voltage-dependent target with a voltage-dependent time constant,
+    </p>
+    <div class="eq-plate">
+      \[
+        \frac{dg}{dt} \;=\; \frac{g_\infty(\Vm) - g}{\tau(\Vm)}
+      \]
+    </div>
+    <p>
+      each one its own little ODE. This is the Hodgkin&ndash;Huxley idea, transplanted from squid
+      axon to cardiac myocyte. A sodium channel, for instance, has a fast <em>activation</em> gate
+      that snaps open when the voltage rises and a slower <em>inactivation</em> gate that then swings
+      shut &mdash; so the channel conducts only during a brief window, produces the upstroke, and
+      then <em>stays inactivated until the voltage falls back down and resets it</em>. That last
+      clause is the refractory period, and it is entirely a property of gating kinetics.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 760 340" role="img" aria-label="A cardiac action potential plotted as transmembrane voltage over time, annotated with phases 0 through 4: a fast upstroke, a brief notch, a long plateau near zero millivolts, a repolarization down-slope, and a resting level near minus 80 millivolts. Below it, schematic time courses of a fast sodium current spike, a sustained inward calcium current during the plateau, and outward potassium currents that grow during repolarization.">
+        <defs>
+          <marker id="ap-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- axes -->
+        <line x1="70" y1="30" x2="70" y2="190" stroke="var(--line-strong)" stroke-width="1.5"/>
+        <line x1="70" y1="190" x2="720" y2="190" stroke="var(--line-strong)" stroke-width="1.5" marker-end="url(#ap-arr)"/>
+        <text x="60" y="44" text-anchor="end" font-family="IBM Plex Mono" font-size="10" fill="var(--muted)">+20</text>
+        <text x="60" y="120" text-anchor="end" font-family="IBM Plex Mono" font-size="10" fill="var(--muted)">&minus;30</text>
+        <text x="60" y="188" text-anchor="end" font-family="IBM Plex Mono" font-size="10" fill="var(--muted)">&minus;80 mV</text>
+        <text x="716" y="206" text-anchor="end" font-family="IBM Plex Mono" font-size="10" fill="var(--muted)">time (~300 ms)</text>
+        <!-- AP curve -->
+        <path d="M70,182 L120,182 L128,40 L150,64 L165,58 Q 260,52 360,70 Q 440,86 470,150 L500,182 L720,182"
+              fill="none" stroke="var(--vm)" stroke-width="2.6"/>
+        <!-- phase labels -->
+        <text x="126" y="32" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--vm)" font-weight="600">0</text>
+        <text x="158" y="48" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--vm)" font-weight="600">1</text>
+        <text x="285" y="46" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--vm)" font-weight="600">2 &mdash; plateau</text>
+        <text x="470" y="110" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--vm)" font-weight="600">3</text>
+        <text x="610" y="178" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--vm)" font-weight="600">4 &mdash; rest</text>
+        <!-- currents below -->
+        <text x="70" y="238" font-family="IBM Plex Mono" font-size="11" fill="var(--intra-ink)" font-weight="600">I_Na</text>
+        <path d="M120,300 L126,300 L129,250 L134,300 L720,300" fill="none" stroke="var(--intra)" stroke-width="2"/>
+        <text x="70" y="264" font-family="IBM Plex Mono" font-size="11" fill="var(--intra-ink)" font-weight="600">I_CaL</text>
+        <path d="M120,326 L150,326 L165,314 Q 300,308 380,318 Q 450,326 470,326 L720,326" fill="none" stroke="var(--intra)" stroke-width="1.8" stroke-dasharray="5 3"/>
+        <text x="70" y="290" font-family="IBM Plex Mono" font-size="11" fill="var(--extra-ink)" font-weight="600">I_K</text>
+        <path d="M120,290 L360,286 Q 450,282 480,250 Q 500,238 540,286 L720,290" fill="none" stroke="var(--extra)" stroke-width="1.8"/>
+        <text x="230" y="250" font-family="Source Serif 4" font-size="12" fill="var(--ink-soft)">inward Ca&sup2;&#8314; balances outward K&#8314; &rarr; voltage held near 0</text>
+      </svg>
+      <figcaption><strong>Figure 2.</strong> The cardiac action potential and, schematically, the currents behind it. Phase 0: a fast, self-amplifying sodium influx &mdash; the upstroke. Phase 2: a sustained inward calcium current nearly cancels the outward potassium currents, holding the membrane depolarized for ~200&nbsp;ms &mdash; the <em>plateau</em>, which a nerve spike does not have. Phase 3: potassium currents win, the membrane repolarizes. Until it does, the sodium channels stay inactivated and the tissue cannot be re-excited &mdash; the <strong>refractory period</strong>.</figcaption>
+    </figure>
+
+    <h3>The plateau is the whole reason reentry is possible</h3>
+    <p>
+      A squid axon spike is over in ~2&nbsp;ms. A cardiac action potential lasts <strong>200&ndash;300&nbsp;ms</strong>,
+      almost all of it plateau. During that time the tissue is refractory &mdash; it has just fired
+      and cannot fire again. Multiply that refractory duration by the conduction velocity and you get
+      the <strong>wavelength</strong>: the physical length of tissue that is &ldquo;used up&rdquo;
+      behind a wavefront at any instant. Reentry &mdash; a wave chasing its own tail around a circuit
+      &mdash; can only happen if the circuit is <em>longer</em> than the wavelength, so that by the
+      time the front comes back around, the tissue has recovered. Everything in &sect;4 and &sect;5 is
+      about engineering that condition.
+    </p>
+
+    <h3>Courtemanche, and &ldquo;AF remodeling&rdquo;</h3>
+    <p>
+      This project uses the <strong>Courtemanche&ndash;Ramirez&ndash;Nattel (1998)</strong> model: a
+      human <em>atrial</em> myocyte, roughly 21 state variables (the voltage plus ~20 gates and
+      internal ion concentrations). Atrial, because the target arrhythmia &mdash; atrial fibrillation
+      &mdash; is an atrial disease, and atrial cells repolarize differently from ventricular ones.
+    </p>
+    <p>
+      Persistent AF physically <em>remodels</em> the atrial myocyte: channel expression shifts over
+      weeks. The standard in-silico stand-in, which the openCARP example applies, is to rescale a
+      handful of maximal conductances &mdash; reduce the L-type calcium current \(g_\text{CaL}\) by
+      about half, increase the inward-rectifier \(g_\text{K1}\), cut the transient outward current,
+      and so on. The <em>net effect</em> of all of it is what matters:
+    </p>
+    <ul>
+      <li>a <strong>shorter action potential</strong> &mdash; less plateau, faster repolarization;</li>
+      <li>a <strong>flatter restitution curve</strong> &mdash; the action potential barely shortens
+        further as the heart rate rises, which removes a natural brake on wavebreak;</li>
+      <li>together with the deliberately slowed conduction (&sect;3), a <strong>much shorter
+        wavelength</strong>.</li>
+    </ul>
+    <p>
+      A shorter wavelength means a reentrant circuit fits in a smaller piece of tissue &mdash; so a
+      rotor can be induced on a 5&nbsp;cm sheet and, once induced, stays stable rather than
+      self-terminating. Without the remodeling, this substrate would not reliably hold a rotor. The
+      remodeled model is not a detail; it is what makes the whole Phase&nbsp;2 pipeline work.
+    </p>
+  </section>
+
+  <!-- ============================================================ 03 -->
+  <section class="chapter" id="s3">
+    <div class="chapter-head">
+      <p class="chapter-num">03 &middot; Mesh and substrate</p>
+      <h2>The sheet of tissue and the scar in the middle of it</h2>
+      <p class="chapter-goal">You should come out able to describe the geometry, say how conductivity relates to conduction velocity, and explain what the central fibrotic patch is and why it is there.</p>
+    </div>
+
+    <h3>The mesh</h3>
+    <p>
+      A <strong>5&nbsp;cm &times; 5&nbsp;cm square sheet</strong>, triangulated with an average edge
+      length of <strong>0.4&nbsp;mm</strong> &mdash; a regular 126&times;126 grid, so
+      <strong>15,876 nodes</strong>. Every node carries a transmembrane voltage and a full copy of
+      the ionic model's state. Every triangular <em>element</em> carries a conductivity tensor and an
+      integer <em>region tag</em> that says which tissue type it is (healthy, or inside the patch).
+    </p>
+    <p>
+      It is a <strong>sheet, not a slab</strong> &mdash; two-dimensional, one notional cell layer
+      thick. There is no wall thickness, therefore no through-wall (&ldquo;transmural&rdquo;)
+      direction, no fibre rotation through the wall, and no scroll waves. That is a real
+      simplification and &sect;8 lists what it costs.
+    </p>
+
+    <h3>Conductivity sets the conduction velocity</h3>
+    <p>
+      The speed a planar wavefront travels scales, roughly, as the square root of the conductivity:
+      \(\text{CV} \propto \sqrt{\sigma / (\chi C_m)}\). You do not usually set \(\sigma\) directly to
+      a physical number and hope; instead you pick the conduction velocity you want and let a helper
+      (openCARP's <code>tuneCV</code>) search for the \(\sigma\) that produces it on this mesh at this
+      resolution. This example tunes to <strong>0.3&nbsp;m/s</strong> &mdash; deliberately slow.
+      Healthy atrial conduction is more like 0.6&ndash;1.0&nbsp;m/s; the slowed value is part of the
+      same &ldquo;shorten the wavelength so a rotor fits&rdquo; strategy as the AF remodeling.
+    </p>
+    <div class="callout">
+      <span class="callout-label">One anisotropy caveat</span>
+      <p>
+        The tutorial spent real effort on <em>anisotropy</em> &mdash; conduction being faster along
+        muscle fibres than across them. <strong>This particular 2&#8209;D mesh is isotropic</strong>:
+        the longitudinal and transverse conductivities are set equal (\(g_{il} = g_{it}\)), so there
+        is no fibre direction at all. Everything in the fibre-orientation discussion elsewhere in
+        this project's notes is about a effect that is deliberately <em>absent</em> from this setup,
+        not one that is modelled in it.
+      </p>
+    </div>
+
+    <h3>The fibrotic patch &mdash; the reentry substrate</h3>
+    <p>
+      At the centre of the sheet is a <strong>disc of radius ~1.4&nbsp;cm</strong> of &ldquo;fibrotic&rdquo;
+      tissue. Inside that disc:
+    </p>
+    <ul>
+      <li><strong>30% of the elements, chosen at random, are made nearly non-conductive</strong>
+        (conductivity set to \(10^{-7}\)&nbsp;S/m &mdash; effectively tiny holes the wave must go
+        around);</li>
+      <li>the <strong>other 70% get the AF ionic remodeling</strong> &mdash; rescaled channel
+        conductances representing the effect of inflammatory signalling on surviving myocytes.</li>
+    </ul>
+    <p>
+      The point of the patch is to create a region where conduction is <em>slow, uneven, and
+      fragile</em> &mdash; where a wavefront threading between the holes can be delayed, split, or
+      blocked on one side but not the other. That is precisely the condition a rotor needs to be born
+      (&sect;5), and once one exists, the patch edge gives its core somewhere stable to anchor. Real
+      atrial fibrosis is patchy and diffuse in a way this single clean disc only cartoons &mdash;
+      but the mechanism it provides is the right one.
+    </p>
+  </section>
+
+  <!-- ============================================================ 04 -->
+  <section class="chapter" id="s4">
+    <div class="chapter-head">
+      <p class="chapter-num">04 &middot; Stimulation and induction</p>
+      <h2>How you start a wave, and how you turn a wave into a rotor</h2>
+      <p class="chapter-goal">You should come out able to explain what a stimulus is, why the tissue is &ldquo;prepaced&rdquo; first, and what the rapid-pacing protocol this project uses is doing.</p>
+    </div>
+
+    <p>
+      A <strong>stimulus</strong> is an injected current applied to a chosen set of nodes for a few
+      milliseconds &mdash; long enough to push their \(\Vm\) past the sodium-channel threshold and
+      launch a self-propagating wave. That is the only way anything happens in the simulation; with
+      no stimulus the tissue just sits at rest.
+    </p>
+
+    <h3>Prepacing</h3>
+    <p>
+      Before any arrhythmia induction, the tissue is <strong>prepaced</strong>: stimulated
+      repeatedly at a fixed, comfortable rate (basic cycle length 500&nbsp;ms, a few beats) until
+      every node has settled onto a stable, repeating limit cycle &mdash; ion concentrations,
+      gate positions, everything periodic. The final state is saved as a checkpoint. Induction
+      protocols start from that checkpoint, so that what they do is a clean perturbation of a
+      steady state rather than something tangled up with start-up transients.
+    </p>
+    <div class="callout">
+      <span class="callout-label">A real gotcha from this project</span>
+      <p>
+        The openCARP Docker image ships a <em>pre-computed</em> prepace checkpoint from 2020, in an
+        older on-disk format. <code>run.py</code> silently reuses it, and restoring that stale state
+        into the current solver made runs fail with no error message. The fix (in
+        <code>opencarp/README.md</code>) was to delete it once so it regenerates against the current
+        binary. Worth knowing as an example of how much of simulation work is plumbing.
+      </p>
+    </div>
+
+    <h3>Induction protocols</h3>
+    <p>
+      All of these are trying to produce one thing: a <strong>unidirectional conduction block</strong>
+      &mdash; a spot where a wave can pass in one direction but not the other &mdash; because that is
+      the seed of a rotor (&sect;5).
+    </p>
+    <div class="term-key">
+      <dt>S1&ndash;S2 cross-field</dt>
+      <dd>Launch a planar wave (S1) from one edge. Then, timed to land in the repolarizing
+        <em>tail</em> of S1, fire a second stimulus (S2) from a <em>perpendicular</em> edge. The part
+        of S2 that lands on still-refractory tissue is blocked; the part on recovered tissue
+        propagates &mdash; and now has a free end that curls. The textbook method.</dd>
+      <dt>Rapid pacing &mdash; <span class="mono">RP_B</span></dt>
+      <dd><strong>What this project uses.</strong> Pace repeatedly from one site with a
+        <em>progressively shorter</em> interval between beats (200&nbsp;ms down to 100&nbsp;ms in
+        10&nbsp;ms steps). As the interval closes in on the tissue's refractory period, some beat
+        catches part of the tissue not yet recovered &rarr; local block &rarr; wavebreak &rarr;
+        reentry. The <span class="mono">_B</span> variant checks for reentry after <em>every</em>
+        beat. For rotor A, the beat at basic cycle length 150&nbsp;ms, from node 7830, was the one
+        that took.</dd>
+      <dt>PSD &mdash; phase-singularity distribution</dt>
+      <dd>Skip the physics of induction. Place a phase singularity <em>by hand</em> at a chosen
+        point, solve the Eikonal (wavefront-arrival-time) equation for an activation map consistent
+        with a rotor there, and start the monodomain simulation from that. Reliable and fast; less
+        physiological, since you assumed the rotor rather than triggering it.</dd>
+      <dt>PEERP</dt>
+      <dd>Pace timed to the local effective refractory period to drop a single well-placed ectopic
+        beat. A more surgical version of rapid pacing.</dd>
+    </div>
+  </section>
+
+  <!-- ============================================================ 05 -->
+  <section class="chapter" id="s5">
+    <div class="chapter-head">
+      <p class="chapter-num">05 &middot; How a rotor forms</p>
+      <h2>From a straight wavefront to a wave that chases its own tail forever</h2>
+      <p class="chapter-goal">This is the section to actually understand. You should come out able to narrate, in four steps, how a premature beat on the right substrate becomes a self-sustaining spiral, and what its &ldquo;core&rdquo; is.</p>
+    </div>
+
+    <p>
+      Three ingredients: a <strong>wavefront</strong>, the <strong>refractory tail</strong> that
+      follows it, and a <strong>trigger</strong> that makes a new front run into that tail.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 760 500" role="img" aria-label="Four panels showing rotor formation. Panel A: a straight wavefront sweeping left to right across a tissue square, with a grey refractory band trailing behind it. Panel B: a second premature wavefront launched from the bottom; its upper part runs into the still-refractory band and stops, while its lower part continues, creating a free wave end. Panel C: the free end curls around into a hook because its tip travels more slowly. Panel D: the hook has closed into a rotating spiral wave circulating around a small central core region that is never fully excited.">
+        <defs>
+          <marker id="rot-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- Panel A -->
+        <g>
+          <rect x="20" y="30" width="330" height="190" rx="8" fill="var(--paper-sunken)" stroke="var(--line)"/>
+          <text x="30" y="24" font-family="IBM Plex Mono" font-size="11" fill="var(--muted)">A &mdash; a paced wave and its refractory tail</text>
+          <rect x="120" y="30" width="90" height="190" fill="var(--muted)" opacity="0.28"/>
+          <rect x="205" y="30" width="16" height="190" fill="var(--vm)" opacity="0.85"/>
+          <line x1="235" y1="125" x2="300" y2="125" stroke="currentColor" stroke-width="2" marker-end="url(#rot-arr)"/>
+          <text x="165" y="240" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="var(--muted)">grey = still refractory</text>
+        </g>
+        <!-- Panel B -->
+        <g>
+          <rect x="410" y="30" width="330" height="190" rx="8" fill="var(--paper-sunken)" stroke="var(--line)"/>
+          <text x="420" y="24" font-family="IBM Plex Mono" font-size="11" fill="var(--muted)">B &mdash; premature beat &rarr; block on one side</text>
+          <rect x="470" y="30" width="120" height="120" fill="var(--muted)" opacity="0.28"/>
+          <rect x="470" y="150" width="16" height="66" fill="var(--vm)" opacity="0.85"/>
+          <path d="M478,150 L478,62" stroke="var(--bad)" stroke-width="3" stroke-dasharray="4 4"/>
+          <text x="486" y="52" font-family="IBM Plex Mono" font-size="9.5" fill="var(--bad)">&#10007; blocked (still refractory)</text>
+          <line x1="490" y1="185" x2="570" y2="185" stroke="currentColor" stroke-width="2" marker-end="url(#rot-arr)"/>
+          <text x="600" y="150" text-anchor="middle" font-family="IBM Plex Mono" font-size="9.5" fill="var(--muted)">free end</text>
+        </g>
+        <!-- Panel C -->
+        <g>
+          <rect x="20" y="280" width="330" height="190" rx="8" fill="var(--paper-sunken)" stroke="var(--line)"/>
+          <text x="30" y="274" font-family="IBM Plex Mono" font-size="11" fill="var(--muted)">C &mdash; the free end curls</text>
+          <path d="M60,460 L60,360 Q 60,315 120,315 Q 175,315 180,365" fill="none" stroke="var(--vm)" stroke-width="10" stroke-linecap="round" opacity="0.85"/>
+          <text x="200" y="330" font-family="IBM Plex Mono" font-size="9.5" fill="var(--muted)">tip pivots &mdash; curvature slows it</text>
+        </g>
+        <!-- Panel D -->
+        <g>
+          <rect x="410" y="280" width="330" height="190" rx="8" fill="var(--paper-sunken)" stroke="var(--line)"/>
+          <text x="420" y="274" font-family="IBM Plex Mono" font-size="11" fill="var(--muted)">D &mdash; sustained rotor</text>
+          <path d="M575,375 m0,-70 a70,70 0 1,1 -0.1,0 M575,375 m0,-40 a40,40 0 1,0 0.1,0"
+                fill="none" stroke="var(--vm)" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+          <circle cx="575" cy="375" r="12" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="3 3"/>
+          <text x="575" y="378" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--bad)">core</text>
+          <path d="M620,340 A 55 55 0 0 1 610 410" fill="none" stroke="currentColor" stroke-width="1.6" marker-end="url(#rot-arr)"/>
+        </g>
+      </svg>
+      <figcaption><strong>Figure 3.</strong> Rotor formation. <strong>A</strong> A paced wave sweeps across, leaving a band of refractory tissue behind it. <strong>B</strong> A premature second beat is launched; where it meets tissue that has not recovered, it is blocked &mdash; but elsewhere it propagates, so the wave now has a <em>free end</em>. <strong>C</strong> A free end curls: the tip is highly curved, and a curved front propagates more slowly than a straight one (it has to excite more tissue per unit advance), so the tip lags and the wave pivots around it. <strong>D</strong> If the tissue the tip swings into has recovered by the time it gets there, the curl closes into a loop &mdash; a rotating spiral wave, a <strong>rotor</strong>, circulating around a small <strong>core</strong> that its tip encircles but never fully excites.</figcaption>
+    </figure>
+
+    <h3>Why it sustains &mdash; wavelength versus circuit length</h3>
+    <p>
+      The rotor keeps going for exactly one reason: everywhere the rotating front arrives, the tissue
+      has <em>just barely</em> finished recovering from the previous rotation. The
+      <strong>wavelength</strong> &mdash; conduction velocity &times; refractory period &mdash; is
+      shorter than the path the front travels per rotation. If the wavelength were longer, the front
+      would catch its own refractory tail, hit block, and the rotor would extinguish. This is why the
+      AF remodeling (shorter refractory period, &sect;2) and the slowed conduction (&sect;3) are
+      <em>both</em> needed: each shortens the wavelength, and together they open a window in which a
+      rotor on a 5&nbsp;cm sheet is not just inducible but <em>stable</em>.
+    </p>
+
+    <h3>The core, and anchoring</h3>
+    <p>
+      The <strong>core</strong> is the small region the spiral tip circles. Tissue there is
+      perpetually caught between excitation and recovery &mdash; never fully depolarized, never fully
+      at rest. That is why, in this project's 5&nbsp;s recordings, the transmembrane-voltage
+      amplitude is measurably <em>lower</em> near the core and rises with distance from it: the core
+      is a hole of disorganized, low-amplitude activity at the centre of an otherwise crisply
+      periodic field.
+    </p>
+    <p>
+      A free-floating rotor core also tends to <strong>drift</strong>, and it often drifts until it
+      catches on a <em>conduction heterogeneity</em> &mdash; here, the edge of the fibrotic patch
+      &mdash; and then sits there. This is why, in the regenerated runs, each rotor's core wanders for
+      the first second or two and then settles onto a stable anchor. It is also why the substrate
+      (&sect;3) is not just decoration: it determines <em>where</em> the rotor ends up, which is
+      exactly what an ablation-targeting model needs to predict.
+    </p>
+
+    <div class="callout">
+      <span class="callout-label">The link to the rest of the project</span>
+      <p>
+        This rotor is the simulation's model of an <strong>atrial-fibrillation driver</strong>.
+        Clinically, one ablation strategy is to destroy the rotor core so the arrhythmia can no
+        longer organize around it. Phase&nbsp;2 labels the core region as the ablation target;
+        Phase&nbsp;3 will actually test, in silico, whether ablating there (or elsewhere) terminates
+        the rotor.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 06 -->
+  <section class="chapter" id="s6">
+    <div class="chapter-head">
+      <p class="chapter-num">06 &middot; Phase singularities</p>
+      <h2>Turning &ldquo;where is the rotor core&rdquo; into a number the computer can find</h2>
+      <p class="chapter-goal">You should come out able to explain what phase means here, what a phase singularity is, and why the singularity's location is taken as the ablation target.</p>
+    </div>
+
+    <p>
+      Once a rotor is running, every point in the tissue is doing the same cycle &mdash; depolarize,
+      plateau, repolarize, rest &mdash; just <em>out of step</em> with its neighbours. That
+      &ldquo;where in the cycle are you right now&rdquo; is a natural thing to turn into an angle.
+    </p>
+
+    <h3>Assigning a phase</h3>
+    <p>
+      Take one node's \(\Vm(t)\) trace over the recording. Subtract its mean so it oscillates around
+      zero. Apply the <strong>Hilbert transform</strong> &mdash; the same tool the tutorial mentioned
+      for turning a real oscillation into a rotating complex number &mdash; to get an analytic signal
+      \(V(t) + i\,\hat V(t)\). Its argument is the <strong>instantaneous phase</strong>
+      \(\theta(t) \in (-\pi, \pi]\): \(-\pi\) at deep rest, climbing through 0 at the upstroke,
+      wrapping back around each cycle. Do this independently at all 15,876 nodes and the &ldquo;movie
+      of voltage&rdquo; becomes a &ldquo;movie of phase.&rdquo;
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 760 300" role="img" aria-label="Left: a small patch of tissue coloured by phase, with the colour cycling smoothly through a full rainbow as you move around a central point; at that central point all phase values meet. A small loop drawn around it is labelled 'phase winds by 2 pi'. Right: the same point marked on a longer wandering trajectory line, labelled 'phase-singularity path over 5 seconds = rotor core'.">
+        <defs>
+          <radialGradient id="ps-wheel" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="var(--paper-sunken)"/>
+            <stop offset="100%" stop-color="var(--paper-sunken)"/>
+          </radialGradient>
+        </defs>
+        <!-- pinwheel -->
+        <g transform="translate(180,150)">
+          <g stroke="var(--paper-raised)" stroke-width="1">
+            <path d="M0,0 L95,0 A95,95 0 0,1 67.2,67.2 Z" fill="#d98a3d"/>
+            <path d="M0,0 L67.2,67.2 A95,95 0 0,1 0,95 Z" fill="#c9a83c"/>
+            <path d="M0,0 L0,95 A95,95 0 0,1 -67.2,67.2 Z" fill="#7fa24d"/>
+            <path d="M0,0 L-67.2,67.2 A95,95 0 0,1 -95,0 Z" fill="#3f9a7b"/>
+            <path d="M0,0 L-95,0 A95,95 0 0,1 -67.2,-67.2 Z" fill="#2f8391"/>
+            <path d="M0,0 L-67.2,-67.2 A95,95 0 0,1 0,-95 Z" fill="#4a6fa5"/>
+            <path d="M0,0 L0,-95 A95,95 0 0,1 67.2,-67.2 Z" fill="#6b5793"/>
+            <path d="M0,0 L67.2,-67.2 A95,95 0 0,1 95,0 Z" fill="#a4508b"/>
+          </g>
+          <circle r="95" fill="none" stroke="var(--line-strong)" stroke-width="1"/>
+          <circle r="30" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <circle r="3.5" fill="var(--ink)"/>
+          <text x="0" y="-40" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="var(--ink)">loop: phase winds 2&#960;</text>
+        </g>
+        <text x="180" y="272" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="var(--muted)">every phase meets at the centre</text>
+        <text x="180" y="34" text-anchor="middle" font-family="Source Serif 4" font-size="13" fill="var(--ink-soft)">phase around the core</text>
+        <path d="M300,150 h60" stroke="currentColor" stroke-width="1.6" marker-end="url(#rot-arr)"/>
+        <!-- trajectory -->
+        <g transform="translate(560,150)">
+          <rect x="-140" y="-115" width="280" height="230" rx="8" fill="var(--paper-sunken)" stroke="var(--line)"/>
+          <path d="M-70,60 C -30,20 -60,-30 -10,-40 C 40,-50 20,10 55,20 C 80,28 60,60 30,55"
+                fill="none" stroke="var(--bad)" stroke-width="2"/>
+          <circle cx="30" cy="55" r="3" fill="var(--bad)"/>
+          <text x="0" y="100" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--muted)">singularity path over 5 s = rotor core</text>
+        </g>
+      </svg>
+      <figcaption><strong>Figure 4.</strong> Left: a snapshot of the phase field near the rotor centre. Phase varies smoothly everywhere except at one point, where all phase values converge &mdash; walk any small loop around it and the phase advances by a full \(2\pi\). That point is a <strong>phase singularity</strong>; the sign of the winding (\(+1\) or \(-1\)) is its chirality. Right: tracked frame by frame, the singularity traces out a path &mdash; the rotor core's trajectory over the whole recording.</figcaption>
+    </figure>
+
+    <h3>Finding the singularity</h3>
+    <p>
+      This is what <code>opencarp/phase_singularity.py</code> does, and it is pure topology: for every
+      small cell of the mesh grid, add up the wrapped phase differences going around its four
+      corners. For an ordinary patch of tissue that sum is ~0. Around a singularity it is
+      \(\pm 2\pi\) &mdash; you cannot continuously assign phase there. Mark those cells each frame,
+      link the one core across frames into a trajectory by nearest-neighbour continuity, and you have
+      the rotor core's path.
+    </p>
+
+    <div class="callout">
+      <span class="callout-label">Why this is the ablation target</span>
+      <p>
+        <strong>Nodes within a fixed radius (3&nbsp;mm) of the singularity's trajectory are labelled
+        the ablation-target ground truth</strong>; everything else is background. This is not an
+        arbitrary heuristic &mdash; phase-singularity tracking is the standard way rotor cores are
+        identified in cardiac optical-mapping experiments, and ablating the core is a real (if
+        clinically debated) strategy for terminating atrial fibrillation. Phase&nbsp;2's entire ML
+        task is: predict that label from local electrical features, without having to compute the
+        phase field.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 07 -->
+  <section class="chapter" id="s7">
+    <div class="chapter-head">
+      <p class="chapter-num">07 &middot; Running the pipeline</p>
+      <h2>The actual sequence of steps, and what each one writes to disk</h2>
+      <p class="chapter-goal">You should come out able to walk through the run end to end and name the key numerical settings and output files.</p>
+    </div>
+
+    <figure>
+      <svg viewBox="0 0 760 220" role="img" aria-label="A left-to-right pipeline: generate mesh and fibrotic patch; tune conductivity for 0.3 metres per second; prepace four beats to a steady state checkpoint; run the rapid-pacing train checking for reentry after each beat; on a confirmed rotor, run a five-second free-running simulation; output a voltage-over-time file plus state checkpoints; then post-process into a phase-singularity trajectory and an ablation-target label.">
+        <defs>
+          <marker id="pl-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="IBM Plex Mono" font-size="10.5">
+          <rect x="14" y="40" width="112" height="60" rx="6" fill="var(--extra-soft)" stroke="var(--extra-line)"/>
+          <text x="70" y="62" text-anchor="middle" fill="var(--extra-ink)">mesh +</text>
+          <text x="70" y="78" text-anchor="middle" fill="var(--extra-ink)">patch</text>
+
+          <rect x="150" y="40" width="112" height="60" rx="6" fill="var(--extra-soft)" stroke="var(--extra-line)"/>
+          <text x="206" y="62" text-anchor="middle" fill="var(--extra-ink)">tuneCV</text>
+          <text x="206" y="78" text-anchor="middle" fill="var(--extra-ink)">&rarr; 0.3 m/s</text>
+
+          <rect x="286" y="40" width="112" height="60" rx="6" fill="var(--intra-soft)" stroke="var(--intra-line)"/>
+          <text x="342" y="62" text-anchor="middle" fill="var(--intra-ink)">prepace 4&times;</text>
+          <text x="342" y="78" text-anchor="middle" fill="var(--intra-ink)">&rarr; steady state</text>
+
+          <rect x="422" y="40" width="112" height="60" rx="6" fill="var(--intra-soft)" stroke="var(--intra-line)"/>
+          <text x="478" y="58" text-anchor="middle" fill="var(--intra-ink)">RP_B train</text>
+          <text x="478" y="73" text-anchor="middle" fill="var(--intra-ink)">200&rarr;100 ms</text>
+          <text x="478" y="88" text-anchor="middle" fill="var(--intra-ink)">reentry?</text>
+
+          <rect x="558" y="40" width="112" height="60" rx="6" fill="var(--vm-soft)" stroke="var(--line-strong)"/>
+          <text x="614" y="58" text-anchor="middle" fill="var(--vm)">free-run</text>
+          <text x="614" y="73" text-anchor="middle" fill="var(--vm)">~5 s</text>
+          <text x="614" y="88" text-anchor="middle" fill="var(--vm)">no stimulus</text>
+
+          <line x1="126" y1="70" x2="148" y2="70" stroke="currentColor" stroke-width="1.5" marker-end="url(#pl-arr)"/>
+          <line x1="262" y1="70" x2="284" y2="70" stroke="currentColor" stroke-width="1.5" marker-end="url(#pl-arr)"/>
+          <line x1="398" y1="70" x2="420" y2="70" stroke="currentColor" stroke-width="1.5" marker-end="url(#pl-arr)"/>
+          <line x1="534" y1="70" x2="556" y2="70" stroke="currentColor" stroke-width="1.5" marker-end="url(#pl-arr)"/>
+
+          <rect x="300" y="140" width="150" height="56" rx="6" fill="var(--paper-raised)" stroke="var(--line)"/>
+          <text x="375" y="162" text-anchor="middle" fill="var(--ink-soft)">vm.igb</text>
+          <text x="375" y="178" text-anchor="middle" fill="var(--ink-soft)">+ state.*.roe</text>
+
+          <rect x="480" y="140" width="180" height="56" rx="6" fill="var(--paper-raised)" stroke="var(--line)"/>
+          <text x="570" y="162" text-anchor="middle" fill="var(--ink-soft)">Hilbert &rarr; phase</text>
+          <text x="570" y="178" text-anchor="middle" fill="var(--ink-soft)">&rarr; core + label</text>
+
+          <line x1="614" y1="100" x2="470" y2="140" stroke="currentColor" stroke-width="1.5" marker-end="url(#pl-arr)"/>
+          <line x1="450" y1="168" x2="478" y2="168" stroke="currentColor" stroke-width="1.5" marker-end="url(#pl-arr)"/>
+        </g>
+      </svg>
+      <figcaption><strong>Figure 5.</strong> The Phase&nbsp;2 pipeline. Blue: geometry and calibration. Orange: getting the tissue to a clean state and then destabilizing it. Purple: the free-running window where the rotor lives or dies. Grey: the raw output, and the post-processing that turns it into ground truth.</figcaption>
+    </figure>
+
+    <div class="term-key">
+      <dt>time step</dt>
+      <dd>\(dt = 20\,\mu\text{s}\). Small because the sodium upstroke is fast and the ionic ODEs are
+        stiff; too large a step and the solution blows up or the upstroke is smeared.</dd>
+      <dt>output interval</dt>
+      <dd><code>spacedt = 1&nbsp;ms</code> &mdash; \(\Vm\) is written for all nodes every millisecond,
+        not every solver step. A 5&nbsp;s run is 5001 frames &times; 15,876 nodes &asymp; 300&nbsp;MB.</dd>
+      <dt>mass lumping</dt>
+      <dd>On. Approximates the finite-element mass matrix as diagonal, making each diffusion solve
+        much cheaper; accurate enough on a regular mesh like this one.</dd>
+      <dt><span class="mono">vm.igb</span></dt>
+      <dd>openCARP's binary &ldquo;field over time&rdquo; format. <code>carputils</code> has a Python
+        reader; this project re-exports to a portable <code>.npz</code> so the notebooks need no
+        Docker.</dd>
+      <dt><span class="mono">state.*.roe</span></dt>
+      <dd>A full checkpoint of every node's complete ionic state at one instant. It lets you
+        <em>restart</em> the simulation from exactly there &mdash; which is the mechanism Phase&nbsp;3
+        uses to branch off dozens of &ldquo;what if we ablate here&rdquo; counterfactuals from a
+        single established rotor.</dd>
+    </div>
+
+    <p>
+      The free-running window was originally ~400&nbsp;ms &mdash; about two rotor rotations, which
+      turned out to be too short for any frequency- or rate-based feature to mean anything. It was
+      re-run at <strong>~5&nbsp;s</strong> (about 24 rotations). On this 2&#8209;D mesh, 8 CPU cores,
+      that free-run takes roughly <strong>three minutes</strong> of wall-clock. That number is the
+      baseline Phase&nbsp;4's surrogate has to beat, and Phase&nbsp;3's ablation sweep multiplies it
+      by the number of candidate sites &mdash; which is the whole reason a fast surrogate is worth
+      building.
+    </p>
+  </section>
+
+  <!-- ============================================================ 08 -->
+  <section class="chapter" id="s8">
+    <div class="chapter-head">
+      <p class="chapter-num">08 &middot; What it does and doesn't capture</p>
+      <h2>The simplifications, each named once</h2>
+      <p class="chapter-goal">You should come out able to volunteer these before someone asks &mdash; naming your own model's limits reads as competence, not weakness.</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Choice</th><th>What it costs</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Monodomain</strong>, not bidomain</td><td>One combined conductivity, no separate extracellular potential. No true unipolar/bipolar electrogram, no virtual-electrode or defibrillation physics. Phase&nbsp;2 approximates the electrogram as local \(\Vm\); <code>PHASE2_METHODOLOGY.md</code> &sect;7 owns this.</td></tr>
+          <tr><td><strong>2&#8209;D sheet</strong></td><td>No wall thickness &rarr; no transmural fibre rotation, no scroll waves, no endocardial/epicardial dissociation.</td></tr>
+          <tr><td><strong>Isotropic</strong> conduction</td><td>\(g_{il} = g_{it}\): no fibre direction at all. Real atrial conduction is 2&ndash;3&times; faster along fibres; that anisotropy is simply absent here.</td></tr>
+          <tr><td><strong>Idealized substrate</strong></td><td>A single circular fibrotic disc with random 30% dropout &mdash; a cartoon of real, diffuse, patchy atrial fibrosis.</td></tr>
+          <tr><td><strong>Courtemanche + a fixed AF rescale</strong></td><td>One of several human atrial ionic models; the remodeling multipliers are representative literature values, not patient-specific.</td></tr>
+          <tr><td><strong>One rotor per run</strong></td><td>Real AF often shows multiple, meandering, transient rotors and fibrillatory conduction. This is the stable-single-rotor idealization.</td></tr>
+          <tr><td><strong>No mechano-electric feedback, autonomic tone, or metabolic state</strong></td><td>The tissue does not contract, and nothing modulates it beat to beat.</td></tr>
+          <tr><td><strong>Lesion = instantaneous conductivity change</strong> (Phase&nbsp;3)</td><td>The electroporation pulse itself &mdash; its field, its dose, any acute pro-arrhythmic effect &mdash; is not modelled. That is deferred to the optional Phase&nbsp;5.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      None of these invalidate the project. They set its scope: a controlled, inspectable,
+      fast-to-iterate model in which &ldquo;where is the rotor, and what happens if we ablate here&rdquo;
+      is a well-posed question with a checkable answer &mdash; which is exactly what a surrogate needs
+      to be trained and validated against.
+    </p>
+  </section>
+
+  <!-- ============================================================ 09 -->
+  <section class="chapter" id="s9">
+    <div class="chapter-head">
+      <p class="chapter-num">09 &middot; Check yourself</p>
+      <h2>Four questions, no math</h2>
+      <p class="chapter-goal">If you can answer these out loud, you can defend the simulation layer of this project.</p>
+    </div>
+
+    <div class="problem">
+      <div class="problem-head"><span class="problem-chip chip-warmup">warm-up</span><span class="problem-title">Why doesn't diffusion alone propagate a wave?</span></div>
+      <div class="problem-body">
+        <p>Answer in terms of what each half of the reaction&ndash;diffusion equation contributes.</p>
+        <details class="solution"><summary>Show answer</summary><div class="solution-body">
+          <p>Diffusion only ever moves existing voltage around and smooths gradients out &mdash; it is
+          dissipative, so a bump of depolarization would spread thinner and fade. What keeps a
+          wavefront alive is the <em>reaction</em> term: when diffusion nudges a fresh patch of
+          membrane past threshold, that patch's own ion channels open and actively inject far more
+          charge than diffusion delivered, regenerating a full-amplitude action potential. Each strip
+          of tissue relights the next. Remove the ionic model and you have heat flow, not a wave.</p>
+        </div></details>
+      </div>
+    </div>
+
+    <div class="problem">
+      <div class="problem-head"><span class="problem-chip chip-core">core</span><span class="problem-title">Why do both AF remodeling and slowed conduction matter for getting a stable rotor?</span></div>
+      <div class="problem-body">
+        <p>Use the idea of wavelength.</p>
+        <details class="solution"><summary>Show answer</summary><div class="solution-body">
+          <p>Wavelength = conduction velocity &times; refractory period: the length of tissue
+          &ldquo;used up&rdquo; behind a wavefront. A reentrant circuit sustains only if it is longer
+          than the wavelength, so the returning front always meets recovered tissue. AF remodeling
+          shortens the refractory period (shorter action potential); the deliberate CV tuning to
+          0.3&nbsp;m/s shortens the velocity. Both shrink the wavelength, and together they make it
+          small enough that a rotor fits on a 5&nbsp;cm sheet and, once formed, does not catch its own
+          tail and die.</p>
+        </div></details>
+      </div>
+    </div>
+
+    <div class="problem">
+      <div class="problem-head"><span class="problem-chip chip-core">core</span><span class="problem-title">What is the rotor core, physically, and why is voltage amplitude lower there?</span></div>
+      <div class="problem-body">
+        <details class="solution"><summary>Show answer</summary><div class="solution-body">
+          <p>The core is the small region the spiral tip pivots around but never sweeps through
+          cleanly. Tissue there is held perpetually between excitation and recovery &mdash; it never
+          fully depolarizes and never fully rests &mdash; so its transmembrane-voltage swing is small
+          and disorganized compared with tissue a few millimetres away that gets a clean full action
+          potential once per rotation. That is why, in the 5&nbsp;s recordings, peak-to-peak
+          amplitude rises monotonically with distance from the core (correlation ~0.45&ndash;0.5
+          across the three rotors) &mdash; and why amplitude, not dominant frequency, is the feature
+          that tracks core proximity.</p>
+        </div></details>
+      </div>
+    </div>
+
+    <div class="problem">
+      <div class="problem-head"><span class="problem-chip chip-stretch">stretch</span><span class="problem-title">A colleague says &ldquo;your electrogram features are meaningless because it's only monodomain.&rdquo; What's the honest response?</span></div>
+      <div class="problem-body">
+        <details class="solution"><summary>Show answer</summary><div class="solution-body">
+          <p>They have a real point and it should be conceded plainly: monodomain has no separate
+          extracellular potential, so a true unipolar or bipolar electrogram &mdash; which is a
+          spatial derivative of extracellular potential &mdash; cannot be computed from it. This
+          project approximates the electrogram as local \(\Vm\) (and simple differences of it), which
+          is a documented shortcut, not a derivation. What that costs: absolute amplitudes and exact
+          waveform morphology are not trustworthy. What survives: the <em>relative</em> spatial
+          structure &mdash; that activity is lower-amplitude and more disorganized near the core than
+          far from it &mdash; is a property of \(\Vm\) itself and does carry over. The right framing
+          is that the model supports questions about spatial organization around a driver, not
+          questions about electrogram morphology, and the feature work stays on the right side of
+          that line. A full answer would move to bidomain with an extracellular solve &mdash; which
+          is the 3&#8209;D non-contact direction this project scoped and deferred.</p>
+        </div></details>
+      </div>
+    </div>
+  </section>
+
+  </div>
+
+  <footer class="doc-footer">
+    <p>cardiac-ep-portfolio &middot; docs/OPENCARP_SIMULATION_PRIMER.html &middot; companion to
+    <a href="./BIDOMAIN_MONODOMAIN_TUTORIAL.html">BIDOMAIN_MONODOMAIN_TUTORIAL.html</a>,
+    <a href="./PHASE2_METHODOLOGY.md">PHASE2_METHODOLOGY.md</a>, and
+    <a href="./PHASE3_4_PLAN.md">PHASE3_4_PLAN.md</a></p>
+  </footer>
+</main>
+
+</div>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc-list a'));
+  var targets = links.map(function (l) { return document.getElementById(l.dataset.target); }).filter(Boolean);
+  if (!('IntersectionObserver' in window) || !targets.length) return;
+  var byId = {};
+  links.forEach(function (l) { byId[l.dataset.target] = l; });
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var link = byId[e.target.id];
+      if (!link) return;
+      if (e.isIntersecting) {
+        links.forEach(function (l) { l.classList.remove('active'); });
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+  targets.forEach(function (t) { obs.observe(t); });
+})();
+</script>
+</body>
+</html>
