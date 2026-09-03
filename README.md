@@ -435,14 +435,10 @@ model that reproduces the simulation's answer fast enough to use during a proced
 A browser-based viewer over the Phase 1 test-set predictions — self-contained single HTML
 file, no server, works fully offline (aside from optionally loading its Google Fonts).
 
-**Primary copy:** `results/ecg_viewer.html` in this repo. Explicitly gitignored (unlike the
-PNG plots elsewhere in `results/`) — at 5.6MB and fully regenerable from a checkpoint, it's
-not worth tracking, so it only exists locally after being generated. If you're working over
-SSH with no local browser, pull it to your own machine, e.g.:
-```bash
-scp <user>@<host>:/path/to/pfa/results/ecg_viewer.html ~/Downloads/
-```
-then open the downloaded file directly.
+**Live:** https://neillwhite.github.io/cardiac-ep-portfolio/ecg_viewer.html
+(served copy: `docs/ecg_viewer.html`). It's regenerated from a checkpoint +
+`results/viewer_data.json`, so treat the committed copy as a build artifact rather than
+hand-edited source.
 
 **How to use it:** pick a diagnostic superclass in the left rail (NORM/MI/STTC/CD/HYP), then
 an individual test-set sample from the list below it — each row is marked ✓ or ✗ against the
@@ -461,9 +457,9 @@ python scripts/export_viewer_data.py --checkpoint models/<new_checkpoint>.pt \
     --model-name "<model description>" --output results/viewer_data.json
 ```
 
-then hand the resulting `results/viewer_data.json` to Claude Code to splice into the viewer
-template and rewrite `results/ecg_viewer.html`. The header's model name and export date
-update automatically from the JSON — no other viewer changes needed.
+then splice the resulting `results/viewer_data.json` into the viewer template and rewrite
+`docs/ecg_viewer.html` (the served copy). The header's model name and export date update
+automatically from the JSON — no other viewer changes needed.
 
 ## 8. Limitations & Future Work
 
